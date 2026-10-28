@@ -1,0 +1,312 @@
+{
+ "name": "Lorhaine Mendes",
+ "role": "Fashion Stylist",
+ "email": "lorhainemendes8@gmail.com",
+ "instagram": "",
+ "bio": "Lorhaine Mendes is a fashion stylist based in the UK. [Short bio to come from Lorhaine.]",
+ "projects": [
+  {
+   "slug": "safe",
+   "title": "Safe",
+   "client": "",
+   "year": "",
+   "credits": [
+    {
+     "role": "Styling",
+     "name": "Lorhaine Mendes"
+    },
+    {
+     "role": "Photography",
+     "name": "TBC"
+    }
+   ],
+   "images": [
+    {
+     "f": "safe-01",
+     "w": 2400,
+     "h": 2400,
+     "m": "full"
+    },
+    {
+     "f": "safe-02",
+     "w": 1613,
+     "h": 2400,
+     "m": "frame",
+     "s": 0.94,
+     "x": 50,
+     "y": 50
+    },
+    {
+     "f": "safe-03",
+     "w": 2400,
+     "h": 1613,
+     "m": "full"
+    },
+    {
+     "f": "safe-04",
+     "w": 2400,
+     "h": 1613,
+     "m": "full"
+    },
+    {
+     "f": "safe-05",
+     "w": 1613,
+     "h": 2400,
+     "m": "small",
+     "s": 0.9,
+     "x": 56,
+     "y": 50
+    }
+   ]
+  },
+  {
+   "slug": "marseille",
+   "title": "Marseille",
+   "client": "",
+   "year": "",
+   "credits": [
+    {
+     "role": "Styling",
+     "name": "Lorhaine Mendes"
+    },
+    {
+     "role": "Photography",
+     "name": "TBC"
+    }
+   ],
+   "images": [
+    {
+     "f": "marseille-01",
+     "w": 2400,
+     "h": 1946,
+     "m": "full"
+    },
+    {
+     "f": "marseille-02",
+     "w": 1947,
+     "h": 2400,
+     "m": "frame",
+     "s": 0.94,
+     "x": 50,
+     "y": 50
+    },
+    {
+     "f": "marseille-03",
+     "w": 2400,
+     "h": 1946,
+     "m": "full"
+    }
+   ]
+  },
+  {
+   "slug": "momostar",
+   "title": "Momostar",
+   "client": "",
+   "year": "",
+   "credits": [
+    {
+     "role": "Styling",
+     "name": "Lorhaine Mendes"
+    },
+    {
+     "role": "Photography",
+     "name": "TBC"
+    }
+   ],
+   "images": [
+    {
+     "f": "momostar-01",
+     "w": 1585,
+     "h": 2400,
+     "m": "small",
+     "s": 0.9,
+     "x": 44,
+     "y": 50
+    },
+    {
+     "f": "momostar-02",
+     "w": 2400,
+     "h": 1567,
+     "m": "full"
+    },
+    {
+     "f": "momostar-03",
+     "w": 2400,
+     "h": 1571,
+     "m": "frame",
+     "s": 0.94,
+     "x": 50,
+     "y": 50
+    },
+    {
+     "f": "momostar-04",
+     "w": 2400,
+     "h": 1611,
+     "m": "full"
+    }
+   ]
+  },
+  {
+   "slug": "red",
+   "title": "Red",
+   "client": "",
+   "year": "",
+   "credits": [
+    {
+     "role": "Styling",
+     "name": "Lorhaine Mendes"
+    },
+    {
+     "role": "Photography",
+     "name": "TBC"
+    }
+   ],
+   "images": [
+    {
+     "f": "red-01",
+     "w": 1895,
+     "h": 2400,
+     "m": "full"
+    },
+    {
+     "f": "red-02",
+     "w": 1895,
+     "h": 2400,
+     "m": "frame",
+     "s": 0.94,
+     "x": 50,
+     "y": 50
+    },
+    {
+     "f": "red-03",
+     "w": 1800,
+     "h": 2400,
+     "m": "small",
+     "s": 0.9,
+     "x": 56,
+     "y": 50
+    },
+    {
+     "f": "red-04",
+     "w": 2400,
+     "h": 1871,
+     "m": "full"
+    },
+    {
+     "f": "red-05",
+     "w": 1170,
+     "h": 1560,
+     "m": "frame",
+     "s": 0.94,
+     "x": 50,
+     "y": 50
+    }
+   ]
+  },
+  {
+   "slug": "make-believe",
+   "title": "Make Believe",
+   "client": "",
+   "year": "",
+   "credits": [
+    {
+     "role": "Styling",
+     "name": "Lorhaine Mendes"
+    },
+    {
+     "role": "Photography",
+     "name": "TBC"
+    }
+   ],
+   "images": [
+    {
+     "f": "make-believe-01",
+     "w": 1920,
+     "h": 2400,
+     "m": "full"
+    },
+    {
+     "f": "make-believe-02",
+     "w": 2400,
+     "h": 1810,
+     "m": "full"
+    },
+    {
+     "f": "make-believe-03",
+     "w": 1920,
+     "h": 2400,
+     "m": "small",
+     "s": 0.9,
+     "x": 44,
+     "y": 50
+    },
+    {
+     "f": "make-believe-04",
+     "w": 768,
+     "h": 1024,
+     "m": "frame",
+     "s": 0.94,
+     "x": 50,
+     "y": 50
+    }
+   ]
+  },
+  {
+   "slug": "fourteen",
+   "title": "Fourteen",
+   "client": "",
+   "year": "",
+   "credits": [
+    {
+     "role": "Styling",
+     "name": "Lorhaine Mendes"
+    },
+    {
+     "role": "Photography",
+     "name": "TBC"
+    }
+   ],
+   "images": [
+    {
+     "f": "fourteen-01",
+     "w": 1800,
+     "h": 2400,
+     "m": "full"
+    },
+    {
+     "f": "fourteen-02",
+     "w": 1092,
+     "h": 1360,
+     "m": "small",
+     "s": 0.9,
+     "x": 56,
+     "y": 50
+    },
+    {
+     "f": "fourteen-03",
+     "w": 1924,
+     "h": 2400,
+     "m": "frame",
+     "s": 0.94,
+     "x": 50,
+     "y": 50
+    },
+    {
+     "f": "fourteen-04",
+     "w": 1946,
+     "h": 2400,
+     "m": "full"
+    },
+    {
+     "f": "fourteen-05",
+     "w": 1946,
+     "h": 2400,
+     "m": "small",
+     "s": 0.9,
+     "x": 44,
+     "y": 50
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,75 @@
+@font-face{font-family:"Tinos";src:url(fonts/tinos-latin-400-normal.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Tinos";src:url(fonts/tinos-latin-400-italic.woff2) format("woff2");font-weight:400;font-style:italic;font-display:swap}
+
+:root{--ink:#0a0a0a;--paper:#fff;--pad:20px;--serif:"Tinos","Times New Roman",Times,serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--paper);color:var(--ink);overflow:hidden}
+body{font-family:var(--serif);font-weight:400;font-size:15px;line-height:1.3;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button,input,textarea{font:inherit;color:inherit;background:none;border:0;border-radius:0;cursor:pointer;text-align:left}
+h1,h2,h3,b,strong{font-weight:400;font-size:inherit}
+ul{list-style:none}
+
+/* stage — hard cuts only */
+.stage{position:fixed;inset:0;background:var(--paper)}
+.stage img{position:absolute;user-select:none;-webkit-user-drag:none}
+.bg{inset:0;width:100%;height:100%;object-fit:cover;display:none}
+.stage.frame .bg{display:block}
+.fg{left:0;top:0}
+
+.zones{position:fixed;inset:0;display:grid;grid-template-columns:1fr 1fr;z-index:5}
+.zones i{display:block;cursor:none}
+
+/* small type, truly inverted against whatever is under it */
+.ui{position:fixed;left:var(--pad);right:var(--pad);z-index:10;display:flex;justify-content:space-between;align-items:flex-end;color:#fff;mix-blend-mode:difference}
+.ui.top{top:14px;align-items:baseline}.ui.bot{bottom:14px}
+.pick{position:relative}
+.plist{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}
+.plist[hidden]{display:none}
+.plist button{opacity:.55}
+.plist button:hover,.plist button.on{opacity:1}
+
+.cursor{position:fixed;left:0;top:0;z-index:100;pointer-events:none;color:#fff;mix-blend-mode:difference;font-size:16px;white-space:nowrap;display:none}
+.cursor.on{display:block}
+
+/* overlays */
+.layer{position:fixed;inset:0;z-index:20;background:var(--paper);overflow:hidden}
+.layer[hidden]{display:none}
+.layer .home{position:fixed;left:var(--pad);top:14px}
+.layer .close{position:fixed;right:var(--pad);top:14px;z-index:2}
+
+/* credits = the whole shoot + who made it */
+.credits{background:var(--ink);color:#fff;display:flex;flex-direction:column;justify-content:center;gap:28px;padding:70px 0 60px}
+.credits .strip{display:flex;gap:10px;overflow-x:auto;padding:0 var(--pad);height:56vh;scrollbar-width:none}
+.credits .strip::-webkit-scrollbar{display:none}
+.credits .strip img{height:100%;width:auto;flex:none;cursor:pointer}
+.credits .meta{padding:0 var(--pad);display:flex;gap:48px;align-items:baseline}
+.credits .meta h2{font-style:italic;min-width:140px}
+.credits dl{display:grid;grid-template-columns:auto auto;column-gap:20px;row-gap:2px}
+.credits dt{opacity:.45}
+
+/* info: small, one screen */
+.info{display:grid;grid-template-columns:1fr 1fr;gap:6vw;align-items:center;padding:0 var(--pad)}
+.info .bio{max-width:340px;line-height:1.4}
+.info .links{margin-top:14px;display:flex;gap:16px}
+.info .links a,.info .links span{border-bottom:1px solid currentColor}
+form{display:flex;flex-direction:column;gap:14px;max-width:340px}
+label{display:flex;flex-direction:column;gap:2px;opacity:.45}
+label:focus-within{opacity:1}
+input,textarea{cursor:text;border-bottom:1px solid var(--ink);padding:2px 0 4px;outline:none;opacity:1}
+textarea{resize:none;height:70px}
+.row{display:flex;justify-content:space-between;align-items:baseline}
+.send{border-bottom:1px solid var(--ink)}
+.note{font-style:italic;min-height:1.3em}
+.news{margin-top:30px;flex-direction:row;align-items:flex-end;gap:14px}
+.news label{flex:1}
+.news button{padding-bottom:5px}
+
+@media (max-width:760px){
+  :root{--pad:14px}
+  .zones i{cursor:auto}
+  .cursor{display:none!important}
+  .info{grid-template-columns:1fr;align-content:center;gap:40px}
+  .credits .strip{height:48vh}
+  .credits .meta{flex-direction:column;gap:10px}
+}
