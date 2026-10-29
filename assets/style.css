@@ -82,8 +82,6 @@ textarea{resize:none;height:54px}
 .bigname span{font-family:"Bodoni Moda","Didot","Bodoni 72",serif;font-weight:400;font-size:38vh;line-height:1;letter-spacing:-.02em;white-space:nowrap;padding-right:.35em}
 @keyframes drift{to{transform:translateX(-50%)}}
 /* movement: each image settles in, framed backgrounds breathe */
-.fg.land{animation:land .45s cubic-bezier(.2,.7,.2,1)}
-@keyframes land{from{transform:translateY(14px) scale(.985)}to{transform:none}}
 .stage.frame .bg{animation:breathe 22s ease-in-out infinite alternate}
 @keyframes breathe{from{transform:scale(1.04) translateX(-1.2%)}to{transform:scale(1.12) translateX(1.2%)}}
 .bigname.b2{display:none}
@@ -93,4 +91,4 @@ textarea{resize:none;height:54px}
   .bigname.b2{display:block;top:auto;bottom:40px}
   .bigname.b2 .run{animation-direction:reverse;animation-duration:80s}
 }
-@media (prefers-reduced-motion:reduce){.bigname .run,.fg.land,.stage.frame .bg{animation:none}}
+@media (prefers-reduced-motion:reduce){.bigname .run,.stage.frame .bg{animation:none}}

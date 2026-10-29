@@ -34,7 +34,6 @@ function place(it, size) {
   fg.alt = it.p.title;
   Object.assign(fg.style, { width: w + 'px', height: h + 'px', left: left + 'px', top: top + 'px' });
   stage.classList.toggle('frame', mode === 'frame');
-  if (size !== 'md') { fg.classList.remove('land'); void fg.offsetWidth; fg.classList.add('land'); }
   if (mode === 'frame') bg.src = src(it.p.slug, it.f, 'md');
 }
 
