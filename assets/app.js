@@ -118,11 +118,11 @@ function renderInfo() {
     <div><p class="bio">${esc(data.bio)}</p>
       <div class="links">${data.instagram ? `<a href="https://instagram.com/${esc(data.instagram)}" target="_blank" rel="noopener">Instagram</a>` : '<span>Instagram</span>'}</div></div>
     <div><form class="contact" novalidate>
-      <label>Name<input name="name" required autocomplete="name"></label>
-      <label>Email<input name="email" type="email" required autocomplete="email"></label>
-      <label>Message<textarea name="message" required></textarea></label>
+      <input name="name" placeholder="Name" aria-label="Name" required autocomplete="name">
+      <input name="email" type="email" placeholder="Email" aria-label="Email" required autocomplete="email">
+      <textarea name="message" placeholder="Message" aria-label="Message" required></textarea>
       <div class="row"><button class="send" type="submit">Send</button><span class="note"></span></div></form>
-      <form class="news" novalidate><label>Newsletter<input name="email" type="email" required></label><button type="submit">Join</button></form></div>`;
+      <form class="news" novalidate><input name="email" type="email" placeholder="Newsletter — your email" aria-label="Newsletter email" required><button type="submit">Join</button></form></div>`;
   L.querySelector('.close').onclick = close;
   const c = L.querySelector('.contact'), note = c.querySelector('.note');
   c.addEventListener('submit', async e => {
