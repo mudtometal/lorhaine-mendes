@@ -25,11 +25,6 @@ ul{list-style:none}
 .ui{position:fixed;left:var(--pad);right:var(--pad);z-index:10;display:flex;justify-content:space-between;align-items:flex-end;color:var(--ink)}
 .dark .ui{color:#fff}
 .ui.top{top:14px;align-items:baseline}.ui.bot{bottom:14px}
-.pick{position:relative}
-.plist{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}
-.plist[hidden]{display:none}
-.plist button{opacity:.55}
-.plist button:hover,.plist button.on{opacity:1}
 
 .cursor{position:fixed;left:0;top:0;z-index:100;pointer-events:none;color:var(--ink);font-size:16px;white-space:nowrap;display:none}
 .cursor.on{display:block}

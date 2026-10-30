@@ -9,7 +9,7 @@ const touch = matchMedia('(hover: none)').matches;
 const mobile = () => innerWidth < 760;
 
 const stage = $('.stage'), bg = $('.bg'), fg = $('.fg'), cursor = $('.cursor');
-const ptitle = $('.ptitle'), plist = $('.plist');
+const ptitle = $('.ptitle');
 const layers = { credits: $('.credits'), info: $('.info') };
 
 // warm the cache so cuts are instant
@@ -83,11 +83,8 @@ function go(i) { i = (i + FLOW.length) % FLOW.length; history.replaceState(null,
 const step = d => go(g + d);
 addEventListener('resize', () => { if (g >= 0) place(FLOW[g]); });
 
-/* ---------- project picker (replaces the index page) ---------- */
-plist.innerHTML = P.map((p, i) => `<li><button data-i="${i}">${esc(p.title)}</button></li>`).join('');
-function setTitle(p) { ptitle.textContent = p.title; plist.querySelectorAll('button').forEach(b => b.classList.toggle('on', P[b.dataset.i] === p)); }
-ptitle.addEventListener('click', () => { plist.hidden = !plist.hidden; });
-plist.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; plist.hidden = true; go(FLOW.findIndex(x => x.pi === +b.dataset.i)); });
+/* project name bottom-left: a label only */
+function setTitle(p) { ptitle.textContent = p.title; }
 
 /* ---------- cursor: Prev / Next ---------- */
 let mx = -1, my = -1;
@@ -95,7 +92,7 @@ function tone() { const r = fg.getBoundingClientRect(); cursor.classList.toggle(
 addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; cursor.style.transform = `translate(${mx}px,${my}px) translate(-50%,-60%)`; tone(); });
 document.querySelectorAll('.zones i').forEach(z => {
   z.addEventListener('mouseenter', () => { cursor.textContent = z.dataset.a === 'prev' ? 'Prev' : 'Next'; cursor.classList.toggle('on', !touch); });
-  z.addEventListener('click', () => { plist.hidden = true; step(z.dataset.a === 'prev' ? -1 : 1); });
+  z.addEventListener('click', () => step(z.dataset.a === 'prev' ? -1 : 1));
 });
 $('.zones').addEventListener('mouseleave', () => cursor.classList.remove('on'));
 
@@ -104,7 +101,7 @@ addEventListener('touchstart', e => { tx = openLayer() ? null : e.touches[0].cli
 addEventListener('touchend', e => { if (tx == null) return; const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 45) step(d < 0 ? 1 : -1); tx = null; });
 addEventListener('keydown', e => {
   if (e.target.closest('input,textarea')) return;
-  if (e.key === 'Escape') return openLayer() ? close() : (plist.hidden = true);
+  if (e.key === 'Escape') return openLayer() && close();
   if (openLayer()) return;
   if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); step(1); }
   if (e.key === 'ArrowLeft') step(-1);
@@ -113,7 +110,7 @@ addEventListener('keydown', e => {
 /* ---------- overlays ---------- */
 const openLayer = () => Object.keys(layers).find(k => !layers[k].hidden);
 const close = () => { location.hash = hashFor(Math.max(g, 0)); };
-$('[data-go="credits"]').addEventListener('click', () => { plist.hidden = true; location.hash = '#/credits'; });
+$('[data-go="credits"]').addEventListener('click', () => { location.hash = '#/credits'; });
 
 function renderCredits() {
   const cur = FLOW[Math.max(g, 0)], p = cur.p;
