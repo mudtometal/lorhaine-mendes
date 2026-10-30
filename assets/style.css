@@ -1,46 +1,77 @@
 @font-face{font-family:"Bodoni Moda";src:url(fonts/bodoni-moda-latin-400-normal.woff2) format("woff2");font-weight:400;font-display:swap}
 @font-face{font-family:"Tinos";src:url(fonts/tinos-latin-400-normal.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
 @font-face{font-family:"Tinos";src:url(fonts/tinos-latin-400-italic.woff2) format("woff2");font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:"Inter Tight";src:url(fonts/inter-tight-latin-400-normal.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"Inter Tight";src:url(fonts/inter-tight-latin-400-italic.woff2) format("woff2");font-weight:400;font-style:italic;font-display:swap}
 
-:root{--ink:#0a0a0a;--paper:#fff;--pad:20px;--serif:"Tinos","Times New Roman",Times,serif}
+/* ---------- looks (preview switcher sets data-type / data-colour on <html>) ---------- */
+:root{--ink:#0a0a0a;--paper:#fff;--pink:#ff78c8;--pad:20px;
+  --ui:"Tinos","Times New Roman",Times,serif; --big:"Bodoni Moda","Didot","Bodoni 72",serif;
+  --ui-case:none; --ui-track:0; --big-case:none; --big-track:-.02em;
+  --accent:var(--ink); --credits-bg:var(--paper); --credits-ink:var(--ink)}
+/* August Barron: Times New Roman, tight capitals everywhere */
+:root[data-type="august"]{--big:"Tinos","Times New Roman",Times,serif;--ui-case:uppercase;--ui-track:-.02em;--big-case:uppercase;--big-track:-.045em}
+/* CLIMAX: clean grotesk with an italic */
+:root[data-type="climax"]{--ui:"Inter Tight","Helvetica Neue",Helvetica,Arial,sans-serif;--big:"Inter Tight","Helvetica Neue",Helvetica,Arial,sans-serif;--big-track:-.055em}
+/* pink: accents, colour-switching small type, pink credits */
+:root[data-colour="pink"]{--accent:var(--pink);--credits-bg:var(--pink);--credits-ink:#fff}
+
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--paper);color:var(--ink);overflow:hidden}
-body{font-family:var(--serif);font-weight:400;font-size:15px;line-height:1.3;-webkit-font-smoothing:antialiased}
+body{font-family:var(--ui);font-weight:400;font-size:15px;line-height:1.3;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
-button,input,textarea{font:inherit;color:inherit;background:none;border:0;border-radius:0;cursor:pointer;text-align:left}
+button,input,textarea{font:inherit;color:inherit;background:none;border:0;border-radius:0;cursor:pointer;text-align:left;text-transform:inherit;letter-spacing:inherit}
 h1,h2,h3,b,strong{font-weight:400;font-size:inherit}
 ul{list-style:none}
 
 /* stage — hard cuts only */
 .stage{position:fixed;inset:0;background:var(--paper)}
-.stage img{position:absolute;user-select:none;-webkit-user-drag:none}
+.stage img,.stage video{position:absolute;user-select:none;-webkit-user-drag:none}
 .bg{inset:0;width:100%;height:100%;object-fit:cover;display:none}
-.stage.frame .bg{display:block}
-.fg{left:0;top:0}
+.stage.frame .bg{display:block;animation:breathe 22s ease-in-out infinite alternate}
+@keyframes breathe{from{transform:scale(1.04) translateX(-1.2%)}to{transform:scale(1.12) translateX(1.2%)}}
+.fg,.fgv{left:0;top:0}
+.fgv{display:none;object-fit:cover;background:#000}
+.stage.isvid .fgv{display:block}
+.stage.isvid .fg{display:none}
+
+/* her name: one still line, a different slice of an endless band on each slide */
+.bigname{position:absolute;left:0;right:0;top:var(--ny,30vh);overflow:hidden;pointer-events:none;color:var(--ink);visibility:hidden}
+.bigname.on{visibility:visible}
+.stage.frame .bigname{color:#fff}
+.bigname .run{display:flex;width:max-content;transform:translateX(var(--nx,0))}
+.bigname span{font-family:var(--big);font-weight:400;font-size:var(--nf,38vh);line-height:1;letter-spacing:var(--big-track);text-transform:var(--big-case);white-space:nowrap;padding-right:.35em}
 
 .zones{position:fixed;inset:0;display:grid;grid-template-columns:1fr 1fr;z-index:5}
 .zones i{display:block;cursor:none}
 
-/* small type, truly inverted against whatever is under it */
-.ui{position:fixed;left:var(--pad);right:var(--pad);z-index:10;display:flex;justify-content:space-between;align-items:flex-end;color:var(--ink)}
+/* small type: black on white, white over dark */
+.ui{position:fixed;left:var(--pad);right:var(--pad);z-index:10;display:flex;justify-content:space-between;align-items:flex-end;color:var(--ink);text-transform:var(--ui-case);letter-spacing:var(--ui-track)}
 .dark .ui{color:#fff}
 .ui.top{top:14px;align-items:baseline}.ui.bot{bottom:14px}
+.ui a:hover,.ui button:hover{color:var(--accent)}
+.dark .ui a:hover,.dark .ui button:hover{color:#fff;font-style:italic}
+:root[data-colour="pink"] .ui .blink{color:var(--pink)}
+:root[data-colour="pink"] .ui .blink.it{font-style:italic}
 
-.cursor{position:fixed;left:0;top:0;z-index:100;pointer-events:none;color:var(--ink);font-size:16px;white-space:nowrap;display:none}
+.cursor{position:fixed;left:0;top:0;z-index:100;pointer-events:none;color:var(--ink);font-size:16px;white-space:nowrap;display:none;text-transform:var(--ui-case);letter-spacing:var(--ui-track)}
 .cursor.on{display:block}
 .cursor.light{color:#fff}
+:root[data-colour="pink"] .cursor{color:var(--pink)}
 
 /* overlays */
-.layer{position:fixed;inset:0;z-index:20;background:var(--paper);overflow:hidden}
+.layer{position:fixed;inset:0;z-index:20;background:var(--paper);overflow:hidden;text-transform:var(--ui-case);letter-spacing:var(--ui-track)}
 .layer[hidden]{display:none}
 .layer .home{position:fixed;left:var(--pad);top:14px}
 .layer .close{position:fixed;right:var(--pad);top:14px;z-index:2}
+.layer a:hover,.layer button:hover{color:var(--accent)}
 
 /* credits = the whole shoot + who made it */
-.credits{background:var(--ink);color:#fff;display:flex;flex-direction:column;justify-content:center;gap:28px;padding:70px 0 60px}
+.credits{background:var(--credits-bg);color:var(--credits-ink);display:flex;flex-direction:column;justify-content:center;gap:28px;padding:70px 0 60px}
+.credits a:hover,.credits button:hover{color:inherit;font-style:italic}
 .credits .strip{display:flex;gap:1px;overflow-x:auto;padding:0 var(--pad);height:56vh;scrollbar-width:none}
 .credits .strip::-webkit-scrollbar{display:none}
-.credits .strip img{height:100%;width:auto;flex:none;cursor:pointer}
+.credits .strip img,.credits .strip video{height:100%;width:auto;flex:none;cursor:pointer}
 .credits .meta{padding:0 var(--pad);display:flex;gap:48px;align-items:baseline}
 .credits .meta h2{min-width:140px}
 .credits dl{display:grid;grid-template-columns:auto auto;column-gap:20px;row-gap:2px}
@@ -53,7 +84,7 @@ ul{list-style:none}
 .info .links a,.info .links span{border-bottom:1px solid currentColor}
 form{display:flex;flex-direction:column;gap:6px;width:min(280px,100%)}
 input,textarea{cursor:text;font-size:14px;border-bottom:1px solid rgba(10,10,10,.18);padding:6px 0;outline:none;width:100%}
-input:focus,textarea:focus{border-bottom-color:var(--ink)}
+input:focus,textarea:focus{border-bottom-color:var(--accent)}
 input::placeholder,textarea::placeholder{color:var(--ink);opacity:.38}
 textarea{resize:none;height:54px}
 .row{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;font-size:14px}
@@ -62,6 +93,13 @@ textarea{resize:none;height:54px}
 .news{margin-top:34px;flex-direction:row;align-items:baseline;gap:12px}
 .news input{flex:1}
 .news button{font-size:14px}
+
+/* preview switcher (only with ?preview in the address) */
+.looks{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:200;display:flex;gap:14px;align-items:baseline;padding:7px 12px;background:#fff;color:#0a0a0a;border:1px solid #0a0a0a;font:12px/1.2 "Inter Tight",Helvetica,Arial,sans-serif;text-transform:none;letter-spacing:0;white-space:nowrap}
+.looks[hidden]{display:none}
+.looks span{opacity:.45}
+.looks button{font:inherit;padding:0 2px}
+.looks button.on{text-decoration:underline;text-underline-offset:3px}
 
 @media (max-width:760px){
   :root{--pad:14px}
@@ -74,24 +112,6 @@ textarea{resize:none;height:54px}
   .info .row{justify-content:center;gap:16px}
   .credits .strip{height:48vh}
   .credits .meta{flex-direction:column;gap:10px}
+  .looks{bottom:44px;gap:10px;font-size:11px}
 }
-
-/* round 1: her name, huge, drifting behind the photographs */
-.bigname{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);overflow:hidden;pointer-events:none;color:var(--ink)}
-.stage.frame .bigname{color:#fff}
-.bigname .run{display:flex;width:max-content;animation:drift 70s linear infinite}
-.bigname span{font-family:"Bodoni Moda","Didot","Bodoni 72",serif;font-weight:400;font-size:38vh;line-height:1;letter-spacing:-.02em;white-space:nowrap;padding-right:.35em}
-@keyframes drift{to{transform:translateX(-50%)}}
-/* movement: each image settles in, framed backgrounds breathe */
-.stage.frame .bg{animation:breathe 22s ease-in-out infinite alternate}
-@keyframes breathe{from{transform:scale(1.04) translateX(-1.2%)}to{transform:scale(1.12) translateX(1.2%)}}
-.bigname.b2{display:none}
-@media (max-width:760px){
-  .bigname{top:var(--t1,46px);transform:none;transition:none}
-  .bigname span{font-size:var(--f1,13vh)}
-  .bigname.b2{display:block;top:var(--t2,auto)}
-  .bigname.b2 span{font-size:var(--f2,13vh)}
-  .bigname.off{visibility:hidden}
-  .bigname.b2 .run{animation-direction:reverse;animation-duration:80s}
-}
-@media (prefers-reduced-motion:reduce){.bigname .run,.stage.frame .bg{animation:none}}
+@media (prefers-reduced-motion:reduce){.stage.frame .bg{animation:none}}

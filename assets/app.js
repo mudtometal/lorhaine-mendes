@@ -4,19 +4,28 @@ const P = data.projects;
 const FLOW = P.flatMap((p, pi) => p.images.map((im, k) => ({ p, pi, k, ...im })));
 const hi = () => innerWidth * (devicePixelRatio || 1) > 1500;
 const src = (slug, f, size) => `media/${size || (hi() ? 'web' : 'md')}/${slug}/${f}.webp`;
+const vsrc = f => `media/video/${f}.mp4`, vposter = f => `media/video/${f}.jpg`;
+const thumb = (p, im) => im.v ? vposter(im.f) : src(p.slug, im.f, 'md');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const touch = matchMedia('(hover: none)').matches;
 const mobile = () => innerWidth < 760;
+const hash = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 
-const stage = $('.stage'), bg = $('.bg'), fg = $('.fg'), cursor = $('.cursor');
-const ptitle = $('.ptitle');
+const stage = $('.stage'), bg = $('.bg'), fg = $('.fg'), fgv = $('.fgv'), cursor = $('.cursor');
+const ptitle = $('.ptitle'), bigname = $('.bigname');
 const layers = { credits: $('.credits'), info: $('.info') };
 
 // warm the cache so cuts are instant
-FLOW.forEach(it => { new Image().src = src(it.p.slug, it.f, 'md'); });
+FLOW.forEach(it => { new Image().src = it.v ? vposter(it.f) : src(it.p.slug, it.f, 'md'); });
 
-/* ---------- place one image, never cropped ---------- */
+/* ---------- place one image or video, never cropped ---------- */
 const UI = 44;
+let placeToken = 0;
+const cache = new Map();
+function ready(url) {
+  if (!cache.has(url)) { const im = new Image(); im.src = url; cache.set(url, (im.decode ? im.decode() : new Promise(r => im.onload = r)).catch(() => {})); }
+  return cache.get(url);
+}
 function place(it, size) {
   const vw = innerWidth, vh = innerHeight, r = it.w / it.h, m = mobile();
   let mode = it.m, s = it.s || 1, cx = (it.x ?? 50) / 100, cy = (it.y ?? 50) / 100;
@@ -31,48 +40,63 @@ function place(it, size) {
   left = Math.min(Math.max(left, m ? 0 : 20), vw - w - (m ? 0 : 20));
   top = Math.min(Math.max(top, UI), vh - h - UI);
   // load first, then swap file + size in the same frame (no stretched old image in a new box)
-  const token = ++placeToken, url = src(it.p.slug, it.f, size), bgUrl = src(it.p.slug, it.f, 'md');
+  const token = ++placeToken;
+  const url = it.v ? vposter(it.f) : src(it.p.slug, it.f, size);
+  const bgUrl = it.v ? vposter(it.f) : src(it.p.slug, it.f, 'md');
+  const box = { width: w + 'px', height: h + 'px', left: left + 'px', top: top + 'px' };
   const apply = () => {
     if (token !== placeToken) return;
-    fg.src = url; fg.alt = it.p.title;
-    Object.assign(fg.style, { width: w + 'px', height: h + 'px', left: left + 'px', top: top + 'px' });
+    if (it.v) {
+      const want = new URL(vsrc(it.f), location.href).href;
+      if (fgv.src !== want) { fgv.poster = url; fgv.src = want; }
+      Object.assign(fgv.style, box);
+      fgv.play?.().catch(() => {});
+    } else {
+      fgv.pause?.();
+      fg.src = url; fg.alt = it.p.title;
+      Object.assign(fg.style, box);
+    }
+    stage.classList.toggle('isvid', !!it.v);
     stage.classList.toggle('frame', mode === 'frame');
     document.body.classList.toggle('dark', mode === 'frame');
     if (mode === 'frame') bg.src = bgUrl;
-    if (m) fitNames(top, h, vh); else names.forEach(n => n.classList.remove('off'));
+    setName(it, top, h, vw, vh, m);
     tone();
   };
   ready(url).then(() => mode === 'frame' ? ready(bgUrl) : 0).then(apply, apply);
 }
-let placeToken = 0;
-const cache = new Map();
-function ready(url) {
-  if (!cache.has(url)) { const im = new Image(); im.src = url; cache.set(url, (im.decode ? im.decode() : new Promise(r => im.onload = r)).catch(() => {})); }
-  return cache.get(url);
+
+/* ---------- her name: still, on about one slide in three, a different slice each time ---------- */
+function nameOn(it) { return it.n ?? (hash(it.f + 'n') % 3 === 0); }
+function setName(it, top, h, vw, vh, m) {
+  const show = !intro.running && nameOn(it);
+  bigname.classList.toggle('on', show);
+  if (!show) return;
+  const H = hash(it.f);
+  bigname.style.setProperty('--nx', -(H % 3333) / 100 + '%');            // slide the endless line
+  if (!m) {
+    const f = vh * .38, c = .5 + (((H >>> 8) % 100) / 100 - .5) * .36;    // near the middle, sometimes higher / lower
+    const y = Math.min(Math.max(c * vh - f / 2, UI + 6), vh - UI - 6 - f);
+    bigname.style.setProperty('--nf', f + 'px'); bigname.style.setProperty('--ny', y + 'px');
+  } else {
+    const above = top - UI, below = vh - UI - (top + h);                   // phone: the bigger free band, once
+    const band = Math.max(above, below), f = Math.min(vh * .13, band * .92);
+    if (f < 46) return bigname.classList.remove('on');
+    const a = above >= below ? UI : top + h;
+    bigname.style.setProperty('--nf', f + 'px'); bigname.style.setProperty('--ny', (a + (band - f) / 2) + 'px');
+  }
 }
 
-/* phone: each name line sits in the free band above / below the photo; no room = no line */
-const names = [...document.querySelectorAll('.bigname')];
-function fitNames(top, h, vh) {
-  const bands = [[UI - 4, top], [top + h, vh - UI + 4]];
-  bands.forEach(([a, b], k) => {
-    const n = names[k], band = b - a, f = Math.min(vh * .13, band * .92);
-    n.classList.toggle('off', f < 46);
-    n.style.setProperty(k ? '--t2' : '--t1', (a + (band - f) / 2) + 'px');
-    n.style.setProperty(k ? '--f2' : '--f1', f + 'px');
-  });
-}
-
-/* ---------- a short flicker of real frames, then land ---------- */
+/* ---------- intro: one cover per project at an even rhythm ---------- */
 let g = -1, lastPi = -1, flickT = null;
-/* intro: one cover per project at an even rhythm, same size, name changing with it */
 function intro(done) {
   clearTimeout(flickT);
-  const covers = P.map((p, pi) => ({ ...FLOW.find(x => x.pi === pi), m: 'full' }));
+  const covers = P.map((p, pi) => ({ ...FLOW.find(x => x.pi === pi && !x.v), m: 'full' }));
   covers.forEach(c => ready(src(c.p.slug, c.f)));
+  intro.running = true;
   let i = 0;
   const tick = () => {
-    if (i >= covers.length) return done();
+    if (i >= covers.length) { intro.running = false; return done(); }
     const c = covers[i++]; place(c); ptitle.textContent = c.p.title;
     flickT = setTimeout(tick, 170);
   };
@@ -86,21 +110,30 @@ function show(i) {
   const first = g < 0;
   g = i;
   if (first && i === 0) intro(land);
-  else { clearTimeout(flickT); land(); }
+  else { clearTimeout(flickT); intro.running = false; land(); }
   lastPi = it.pi;
 }
-function preload(i) { [i + 1, i - 1, i + 2].forEach(j => { const n = FLOW[(j + FLOW.length) % FLOW.length]; ready(src(n.p.slug, n.f)); if (n.m === 'frame') ready(src(n.p.slug, n.f, 'md')); }); }
+function preload(i) {
+  [i + 1, i - 1, i + 2].forEach(j => {
+    const n = FLOW[(j + FLOW.length) % FLOW.length];
+    if (n.v) { ready(vposter(n.f)); const v = document.createElement('link'); v.rel = 'preload'; v.as = 'video'; v.href = vsrc(n.f); document.head.appendChild(v); return; }
+    ready(src(n.p.slug, n.f)); if (n.m === 'frame') ready(src(n.p.slug, n.f, 'md'));
+  });
+}
 const hashFor = i => i === 0 ? '#/' : `#/${FLOW[i].p.slug}/${FLOW[i].k + 1}`;
 function go(i) { i = (i + FLOW.length) % FLOW.length; history.replaceState(null, '', hashFor(i)); show(i); }
 const step = d => go(g + d);
 addEventListener('resize', () => { if (g >= 0) place(FLOW[g]); });
 
-/* project name bottom-left: a label only */
+/* project name bottom-left opens that shoot's credits */
 function setTitle(p) { ptitle.textContent = p.title; }
 
 /* ---------- cursor: Prev / Next ---------- */
 let mx = -1, my = -1;
-function tone() { const r = fg.getBoundingClientRect(); cursor.classList.toggle('light', document.body.classList.contains('dark') || (mx > r.left && mx < r.right && my > r.top && my < r.bottom)); }
+function tone() {
+  const r = (stage.classList.contains('isvid') ? fgv : fg).getBoundingClientRect();
+  cursor.classList.toggle('light', document.body.classList.contains('dark') || (mx > r.left && mx < r.right && my > r.top && my < r.bottom));
+}
 addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; cursor.style.transform = `translate(${mx}px,${my}px) translate(-50%,-60%)`; tone(); });
 document.querySelectorAll('.zones i').forEach(z => {
   z.addEventListener('mouseenter', () => { cursor.textContent = z.dataset.a === 'prev' ? 'Prev' : 'Next'; cursor.classList.toggle('on', !touch); });
@@ -109,7 +142,7 @@ document.querySelectorAll('.zones i').forEach(z => {
 $('.zones').addEventListener('mouseleave', () => cursor.classList.remove('on'));
 
 let tx = null;
-addEventListener('touchstart', e => { tx = openLayer() ? null : e.touches[0].clientX; }, { passive: true });
+addEventListener('touchstart', e => { tx = openLayer() || e.target.closest('.looks') ? null : e.touches[0].clientX; }, { passive: true });
 addEventListener('touchend', e => { if (tx == null) return; const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 45) step(d < 0 ? 1 : -1); tx = null; });
 addEventListener('keydown', e => {
   if (e.target.closest('input,textarea')) return;
@@ -122,17 +155,19 @@ addEventListener('keydown', e => {
 /* ---------- overlays ---------- */
 const openLayer = () => Object.keys(layers).find(k => !layers[k].hidden);
 const close = () => { location.hash = hashFor(Math.max(g, 0)); };
-$('[data-go="credits"]').addEventListener('click', () => { location.hash = '#/credits'; });
+document.querySelectorAll('[data-go="credits"]').forEach(b => b.addEventListener('click', () => { location.hash = '#/credits'; }));
 
 function renderCredits() {
   const cur = FLOW[Math.max(g, 0)], p = cur.p;
   layers.credits.innerHTML = `<a class="home" href="#/">${esc(data.name)}</a><button class="close">Close</button>
-    <div class="strip">${p.images.map((im, k) => `<img src="${src(p.slug, im.f, 'md')}" data-k="${k}" alt="${esc(p.title)}">`).join('')}</div>
+    <div class="strip">${p.images.map((im, k) => im.v
+      ? `<video src="${vsrc(im.f)}" poster="${vposter(im.f)}" data-k="${k}" muted loop playsinline autoplay></video>`
+      : `<img src="${thumb(p, im)}" data-k="${k}" alt="${esc(p.title)}">`).join('')}</div>
     <div class="meta"><h2>${esc(p.title)}</h2><dl>${p.credits.map(c => `<dt>${esc(c.role)}</dt><dd>${esc(c.name)}</dd>`).join('')}
       ${p.client ? `<dt>Client</dt><dd>${esc(p.client)}</dd>` : ''}${p.year ? `<dt>Year</dt><dd>${esc(p.year)}</dd>` : ''}</dl></div>`;
   layers.credits.querySelector('.close').onclick = close;
-  layers.credits.querySelectorAll('.strip img').forEach(img => img.onclick = () => {
-    const i = FLOW.findIndex(x => x.pi === cur.pi && x.k === +img.dataset.k); g = i; lastPi = cur.pi; location.hash = hashFor(i);
+  layers.credits.querySelectorAll('.strip [data-k]').forEach(el => el.onclick = () => {
+    const i = FLOW.findIndex(x => x.pi === cur.pi && x.k === +el.dataset.k); g = i; lastPi = cur.pi; location.hash = hashFor(i);
   });
   const strip = layers.credits.querySelector('.strip');
   strip.addEventListener('wheel', e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { strip.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
@@ -164,6 +199,41 @@ function renderInfo() {
     nf.innerHTML = '<p class="note">Thank you.</p>'; });
 }
 
+/* ---------- looks: type + colour, previewable with ?preview ---------- */
+const LOOKS = { type: ['classic', 'august', 'climax'], colour: ['mono', 'pink'] };
+const qs = new URLSearchParams(location.search);
+const store = { get: k => { try { return localStorage.getItem('lm-' + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('lm-' + k, v); } catch {} } };
+const look = { type: qs.get('type') || store.get('type') || data.look?.type || 'classic', colour: qs.get('colour') || store.get('colour') || data.look?.colour || 'mono' };
+function applyLook() {
+  document.documentElement.dataset.type = look.type;
+  document.documentElement.dataset.colour = look.colour;
+  document.querySelectorAll('.looks button').forEach(b => b.classList.toggle('on', look[b.dataset.k] === b.dataset.v));
+  blink();
+  if (g >= 0) place(FLOW[g]);
+}
+if (qs.has('preview')) {
+  const L = $('.looks');
+  L.innerHTML = Object.entries(LOOKS).map(([k, vs]) => `<span>${k === 'type' ? 'Type' : 'Colour'}</span>` + vs.map(v => `<button data-k="${k}" data-v="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')).join('');
+  L.hidden = false;
+  L.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    look[b.dataset.k] = b.dataset.v; store.set(b.dataset.k, b.dataset.v);
+    const q = new URLSearchParams(location.search); q.set(b.dataset.k, b.dataset.v);
+    history.replaceState(null, '', '?' + q.toString().replace(/=(&|$)/g, '$1') + location.hash);
+    applyLook();
+  });
+}
+/* pink: the small type switches colour (and now and then to italic), like CLIMAX's header */
+let blinkT = null;
+function blink() {
+  clearInterval(blinkT);
+  const els = [...document.querySelectorAll('.ui .home, .ui .ptitle')];
+  els.forEach(e => e.classList.remove('blink', 'it'));
+  if (look.colour !== 'pink' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let n = 0;
+  blinkT = setInterval(() => { n++; els.forEach((e, k) => { e.classList.toggle('blink', (n + k) % 2 === 0); e.classList.toggle('it', (n + k) % 4 === 0); }); }, 650);
+}
+
 /* ---------- router ---------- */
 function route() {
   const [a, b] = location.hash.replace(/^#\/?/, '').split('/');
@@ -176,7 +246,8 @@ function route() {
   }
   const pi = P.findIndex(p => p.slug === a);
   const i = pi < 0 ? 0 : FLOW.findIndex(x => x.pi === pi && x.k === Math.min(Math.max((+b || 1) - 1, 0), P[pi].images.length - 1));
-  if (i !== g || fg.getAttribute('src') == null) show(i); else { place(FLOW[i]); setTitle(FLOW[i].p); }
+  if (i !== g || (!fg.getAttribute('src') && !fgv.getAttribute('src'))) show(i); else { place(FLOW[i]); setTitle(FLOW[i].p); }
 }
 addEventListener('hashchange', route);
+applyLook();
 route();
