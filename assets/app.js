@@ -34,7 +34,22 @@ function place(it, size) {
   fg.alt = it.p.title;
   Object.assign(fg.style, { width: w + 'px', height: h + 'px', left: left + 'px', top: top + 'px' });
   stage.classList.toggle('frame', mode === 'frame');
+  document.body.classList.toggle('dark', mode === 'frame');
   if (mode === 'frame') bg.src = src(it.p.slug, it.f, 'md');
+  if (m) fitNames(top, h, vh); else names.forEach(n => n.classList.remove('off'));
+  tone();
+}
+
+/* phone: each name line sits in the free band above / below the photo; no room = no line */
+const names = [...document.querySelectorAll('.bigname')];
+function fitNames(top, h, vh) {
+  const bands = [[UI - 4, top], [top + h, vh - UI + 4]];
+  bands.forEach(([a, b], k) => {
+    const n = names[k], band = b - a, f = Math.min(vh * .13, band * .92);
+    n.classList.toggle('off', f < 46);
+    n.style.setProperty(k ? '--t2' : '--t1', (a + (band - f) / 2) + 'px');
+    n.style.setProperty(k ? '--f2' : '--f1', f + 'px');
+  });
 }
 
 /* ---------- a short flicker of real frames, then land ---------- */
@@ -75,7 +90,9 @@ ptitle.addEventListener('click', () => { plist.hidden = !plist.hidden; });
 plist.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; plist.hidden = true; go(FLOW.findIndex(x => x.pi === +b.dataset.i)); });
 
 /* ---------- cursor: Prev / Next ---------- */
-addEventListener('mousemove', e => { cursor.style.transform = `translate(${e.clientX}px,${e.clientY}px) translate(-50%,-60%)`; });
+let mx = -1, my = -1;
+function tone() { const r = fg.getBoundingClientRect(); cursor.classList.toggle('light', document.body.classList.contains('dark') || (mx > r.left && mx < r.right && my > r.top && my < r.bottom)); }
+addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; cursor.style.transform = `translate(${mx}px,${my}px) translate(-50%,-60%)`; tone(); });
 document.querySelectorAll('.zones i').forEach(z => {
   z.addEventListener('mouseenter', () => { cursor.textContent = z.dataset.a === 'prev' ? 'Prev' : 'Next'; cursor.classList.toggle('on', !touch); });
   z.addEventListener('click', () => { plist.hidden = true; step(z.dataset.a === 'prev' ? -1 : 1); });
