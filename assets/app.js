@@ -30,14 +30,25 @@ function place(it, size) {
   let left = vw * cx - w / 2, top = vh * cy - h / 2;
   left = Math.min(Math.max(left, m ? 0 : 20), vw - w - (m ? 0 : 20));
   top = Math.min(Math.max(top, UI), vh - h - UI);
-  fg.src = src(it.p.slug, it.f, size);
-  fg.alt = it.p.title;
-  Object.assign(fg.style, { width: w + 'px', height: h + 'px', left: left + 'px', top: top + 'px' });
-  stage.classList.toggle('frame', mode === 'frame');
-  document.body.classList.toggle('dark', mode === 'frame');
-  if (mode === 'frame') bg.src = src(it.p.slug, it.f, 'md');
-  if (m) fitNames(top, h, vh); else names.forEach(n => n.classList.remove('off'));
-  tone();
+  // load first, then swap file + size in the same frame (no stretched old image in a new box)
+  const token = ++placeToken, url = src(it.p.slug, it.f, size), bgUrl = src(it.p.slug, it.f, 'md');
+  const apply = () => {
+    if (token !== placeToken) return;
+    fg.src = url; fg.alt = it.p.title;
+    Object.assign(fg.style, { width: w + 'px', height: h + 'px', left: left + 'px', top: top + 'px' });
+    stage.classList.toggle('frame', mode === 'frame');
+    document.body.classList.toggle('dark', mode === 'frame');
+    if (mode === 'frame') bg.src = bgUrl;
+    if (m) fitNames(top, h, vh); else names.forEach(n => n.classList.remove('off'));
+    tone();
+  };
+  ready(url).then(() => mode === 'frame' ? ready(bgUrl) : 0).then(apply, apply);
+}
+let placeToken = 0;
+const cache = new Map();
+function ready(url) {
+  if (!cache.has(url)) { const im = new Image(); im.src = url; cache.set(url, (im.decode ? im.decode() : new Promise(r => im.onload = r)).catch(() => {})); }
+  return cache.get(url);
 }
 
 /* phone: each name line sits in the free band above / below the photo; no room = no line */
@@ -58,10 +69,11 @@ let g = -1, lastPi = -1, flickT = null;
 function intro(done) {
   clearTimeout(flickT);
   const covers = P.map((p, pi) => ({ ...FLOW.find(x => x.pi === pi), m: 'full' }));
+  covers.forEach(c => ready(src(c.p.slug, c.f)));
   let i = 0;
   const tick = () => {
     if (i >= covers.length) return done();
-    const c = covers[i++]; place(c, 'md'); ptitle.textContent = c.p.title;
+    const c = covers[i++]; place(c); ptitle.textContent = c.p.title;
     flickT = setTimeout(tick, 170);
   };
   tick();
@@ -77,7 +89,7 @@ function show(i) {
   else { clearTimeout(flickT); land(); }
   lastPi = it.pi;
 }
-function preload(i) { [i + 1, i - 1].forEach(j => { const n = FLOW[(j + FLOW.length) % FLOW.length]; new Image().src = src(n.p.slug, n.f); }); }
+function preload(i) { [i + 1, i - 1, i + 2].forEach(j => { const n = FLOW[(j + FLOW.length) % FLOW.length]; ready(src(n.p.slug, n.f)); if (n.m === 'frame') ready(src(n.p.slug, n.f, 'md')); }); }
 const hashFor = i => i === 0 ? '#/' : `#/${FLOW[i].p.slug}/${FLOW[i].k + 1}`;
 function go(i) { i = (i + FLOW.length) % FLOW.length; history.replaceState(null, '', hashFor(i)); show(i); }
 const step = d => go(g + d);
