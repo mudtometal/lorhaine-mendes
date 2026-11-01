@@ -180,26 +180,32 @@ function renderCredits() {
 }
 
 function renderInfo() {
+  // one narrow column, almost nothing: a line about her, Instagram, then a two-line note and a quiet newsletter link
   const L = layers.info;
   L.innerHTML = `<a class="home" href="#/">${esc(data.name)}</a><button class="close">Close</button>
-    <div><p class="bio">${esc(data.bio)}</p>
-      <div class="links">${data.instagram ? `<a href="https://instagram.com/${esc(data.instagram)}" target="_blank" rel="noopener">Instagram</a>` : '<span>Instagram</span>'}</div></div>
-    <div><form class="contact" novalidate>
-      <input name="name" placeholder="Name" aria-label="Name" required autocomplete="name">
-      <input name="email" type="email" placeholder="Email" aria-label="Email" required autocomplete="email">
-      <textarea name="message" placeholder="Message" aria-label="Message" required></textarea>
-      <div class="row"><button class="send" type="submit">Send</button><span class="note"></span></div></form>
-      <form class="news" novalidate><input name="email" type="email" placeholder="Newsletter — your email" aria-label="Newsletter email" required><button type="submit">Join</button></form></div>`;
+    <div class="col">
+      <p class="bio">${esc(data.bio)}</p>
+      <p>${data.instagram ? `<a href="https://instagram.com/${esc(data.instagram)}" target="_blank" rel="noopener">Instagram</a>` : '<span>Instagram</span>'}</p>
+      <form class="contact" novalidate>
+        <textarea name="message" rows="1" placeholder="Write something" aria-label="Message" required></textarea>
+        <div class="row"><input name="email" type="email" placeholder="Your email" aria-label="Email" required autocomplete="email"><button class="send" type="submit" hidden>Send</button></div>
+        <p class="note"></p>
+      </form>
+      <form class="news" novalidate><button type="button" class="nlink">Newsletter</button><input name="email" type="email" placeholder="Your email" aria-label="Newsletter email" required hidden><button class="join" type="submit" hidden>Join</button></form>
+    </div>`;
   L.querySelector('.close').onclick = close;
-  const c = L.querySelector('.contact'), note = c.querySelector('.note');
+  const c = L.querySelector('.contact'), note = c.querySelector('.note'), send = c.querySelector('.send'), ta = c.querySelector('textarea');
+  const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+  c.addEventListener('input', () => { grow(); send.hidden = !c.checkValidity(); });
   c.addEventListener('submit', async e => {
-    e.preventDefault(); if (!c.checkValidity()) { note.textContent = 'Please fill in every field.'; return; }
-    note.textContent = 'Sending…';
+    e.preventDefault(); if (!c.checkValidity()) return;
     try { const r = await fetch('/api/contact', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(c))) });
-      if (!r.ok) throw 0; c.reset(); note.textContent = 'Thank you.'; }
-    catch { note.textContent = 'Thank you. (Preview — goes live at launch.)'; }
+      if (!r.ok) throw 0; } catch {}
+    c.reset(); grow(); send.hidden = true; note.textContent = 'Thank you.';
   });
-  const nf = L.querySelector('.news');
+  const nf = L.querySelector('.news'), nl = nf.querySelector('.nlink'), ni = nf.querySelector('input'), nj = nf.querySelector('.join');
+  nl.onclick = () => { nl.hidden = true; ni.hidden = false; ni.focus(); };
+  ni.addEventListener('input', () => { nj.hidden = !nf.checkValidity(); });
   nf.addEventListener('submit', async e => { e.preventDefault(); if (!nf.checkValidity()) return;
     try { await fetch('/api/subscribe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(nf))) }); } catch {}
     nf.innerHTML = '<p class="note">Thank you.</p>'; });
