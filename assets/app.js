@@ -11,7 +11,9 @@ const touch = matchMedia('(hover: none)').matches;
 const mobile = () => innerWidth < 760;
 const hash = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 
-const stage = $('.stage'), bg = $('.bg'), fg = $('.fg'), fgv = $('.fgv'), cursor = $('.cursor');
+const stage = $('.stage');
+let bg = $('.bg'), fg = $('.fg');
+const fgv = $('.fgv'), cursor = $('.cursor');
 const ptitle = $('.ptitle'), bigname = $('.bigname');
 const layers = { credits: $('.credits'), info: $('.info') };
 
@@ -26,6 +28,8 @@ function ready(url) {
   if (!cache.has(url)) { const im = new Image(); im.src = url; cache.set(url, (im.decode ? im.decode() : new Promise(r => im.onload = r)).catch(() => {})); }
   return cache.get(url);
 }
+const decoded = new Map();
+function fresh(cls, url, alt) { const n = new Image(); n.className = cls; n.alt = alt; n.src = url; return n; }
 function place(it, size) {
   const vw = innerWidth, vh = innerHeight, r = it.w / it.h, m = mobile();
   let mode = it.m, s = it.s || 1, cx = (it.x ?? 50) / 100, cy = (it.y ?? 50) / 100;
@@ -39,6 +43,9 @@ function place(it, size) {
   let left = vw * cx - w / 2, top = vh * cy - h / 2;
   left = Math.min(Math.max(left, m ? 0 : 20), vw - w - (m ? 0 : 20));
   top = Math.min(Math.max(top, UI), vh - h - UI);
+  // intro: every flash lands in one fixed window (the first slide's), so nothing resizes or bounces
+  const fixed = intro.running && intro.box;
+  if (fixed) ({ w, h, left, top } = intro.box), mode = 'full';
   // load first, then swap file + size in the same frame (no stretched old image in a new box)
   const token = ++placeToken;
   const url = it.v ? vposter(it.f) : src(it.p.slug, it.f, size);
@@ -53,17 +60,18 @@ function place(it, size) {
       fgv.play?.().catch(() => {});
     } else {
       fgv.pause?.();
-      fg.src = url; fg.alt = it.p.title;
-      Object.assign(fg.style, box);
+      const n = fresh('fg', url, it.p.title);
+      Object.assign(n.style, box, { objectFit: fixed ? 'cover' : '' });
+      fg.replaceWith(n); fg = n;
     }
     stage.classList.toggle('isvid', !!it.v);
     stage.classList.toggle('frame', mode === 'frame');
     document.body.classList.toggle('dark', mode === 'frame');
-    if (mode === 'frame') bg.src = bgUrl;
+    if (mode === 'frame' && bg.getAttribute('src') !== bgUrl) { const n = fresh('bg', bgUrl, ''); n.setAttribute('aria-hidden', 'true'); bg.replaceWith(n); bg = n; }
     setName(it, top, h, vw, vh, m);
     tone();
   };
-  ready(url).then(() => mode === 'frame' ? ready(bgUrl) : 0).then(apply, apply);
+  ready(url).then(() => mode === 'frame' ? ready(bgUrl) : 0).then(() => requestAnimationFrame(apply), apply);
 }
 
 /* ---------- her name: still, on about one slide in three, a different slice each time ---------- */
@@ -98,15 +106,20 @@ let g = -1, lastPi = -1, flickT = null;
 function intro(done) {
   clearTimeout(flickT);
   const covers = P.map((p, pi) => ({ ...FLOW.find(x => x.pi === pi && !x.v), m: 'full' }));
-  covers.forEach(c => ready(src(c.p.slug, c.f)));
+  const vw = innerWidth, vh = innerHeight, first = FLOW[0], r = first.w / first.h, m = mobile();
+  let h = vh - UI * 2, w = h * r; const maxW = vw - (m ? 0 : 40);
+  if (w > maxW) { w = maxW; h = w / r; }
+  intro.box = { w, h, left: (vw - w) / 2, top: Math.max(UI, (vh - h) / 2) };
   intro.running = true;
   let i = 0;
+  return Promise.all(covers.map(c => ready(src(c.p.slug, c.f)))).then(() => {
   const tick = () => {
     if (i >= covers.length) { intro.running = false; return done(); }
     const c = covers[i++]; place(c); ptitle.textContent = c.p.title;
     flickT = setTimeout(tick, 170);
   };
   tick();
+  });
 }
 
 function show(i) {
@@ -215,7 +228,7 @@ function renderInfo() {
 const LOOKS = { type: ['classic', 'august', 'climax'], colour: ['mono', 'pink'] };
 const qs = new URLSearchParams(location.search);
 const store = { get: k => { try { return localStorage.getItem('lm-' + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('lm-' + k, v); } catch {} } };
-const look = { type: qs.get('type') || store.get('type') || data.look?.type || 'classic', colour: qs.get('colour') || store.get('colour') || data.look?.colour || 'mono' };
+const look = { type: qs.get('type') || store.get('type') || data.look?.type || 'climax', colour: qs.get('colour') || store.get('colour') || data.look?.colour || 'pink' };
 let looksLabel = () => {};
 function applyLook() {
   looksLabel();
