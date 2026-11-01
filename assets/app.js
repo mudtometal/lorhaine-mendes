@@ -73,17 +73,23 @@ function setName(it, top, h, vw, vh, m) {
   bigname.classList.toggle('on', show);
   if (!show) return;
   const H = hash(it.f);
-  bigname.style.setProperty('--nx', -(H % 3333) / 100 + '%');            // slide the endless line
   if (!m) {
+    bigname.style.setProperty('--nx', -(H % 3333) / 100 + '%');          // slide the endless line
     const f = vh * .38, c = .5 + (((H >>> 8) % 100) / 100 - .5) * .36;    // near the middle, sometimes higher / lower
     const y = Math.min(Math.max(c * vh - f / 2, UI + 6), vh - UI - 6 - f);
     bigname.style.setProperty('--nf', f + 'px'); bigname.style.setProperty('--ny', y + 'px');
   } else {
-    const above = top - UI, below = vh - UI - (top + h);                   // phone: the bigger free band, once
-    const band = Math.max(above, below), f = Math.min(vh * .13, band * .92);
+    // phone: once, in the bigger free band, tucked against the picture so it sits near the centre
+    const above = top - UI, below = vh - UI - (top + h);
+    const band = Math.max(above, below), f = Math.min(vh * .13, band * 1.2);
     if (f < 46) return bigname.classList.remove('on');
-    const a = above >= below ? UI : top + h;
-    bigname.style.setProperty('--nf', f + 'px'); bigname.style.setProperty('--ny', (a + (band - f) / 2) + 'px');
+    const tuck = f * .28;
+    const y = above >= below ? Math.max(UI, top - f + tuck) : Math.min(top + h - tuck, vh - UI - f);
+    bigname.style.setProperty('--nf', f + 'px'); bigname.style.setProperty('--ny', y + 'px');
+    // centre the middle copy of the name on screen, with a small nudge per slide
+    const sp = bigname.querySelectorAll('span'), sw = sp[0].offsetWidth, tw = sw - f * .35;
+    const j = (((H >>> 4) % 100) / 100 - .5) * vw * .16;
+    bigname.style.setProperty('--nx', (vw / 2 + j - (sw + tw / 2)) + 'px');
   }
 }
 
@@ -204,7 +210,9 @@ const LOOKS = { type: ['classic', 'august', 'climax'], colour: ['mono', 'pink'] 
 const qs = new URLSearchParams(location.search);
 const store = { get: k => { try { return localStorage.getItem('lm-' + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('lm-' + k, v); } catch {} } };
 const look = { type: qs.get('type') || store.get('type') || data.look?.type || 'classic', colour: qs.get('colour') || store.get('colour') || data.look?.colour || 'mono' };
+let looksLabel = () => {};
 function applyLook() {
+  looksLabel();
   document.documentElement.dataset.type = look.type;
   document.documentElement.dataset.colour = look.colour;
   document.querySelectorAll('.looks button').forEach(b => b.classList.toggle('on', look[b.dataset.k] === b.dataset.v));
@@ -212,16 +220,22 @@ function applyLook() {
   if (g >= 0) place(FLOW[g]);
 }
 if (qs.has('preview')) {
-  const L = $('.looks');
-  L.innerHTML = Object.entries(LOOKS).map(([k, vs]) => `<span>${k === 'type' ? 'Type' : 'Colour'}</span>` + vs.map(v => `<button data-k="${k}" data-v="${v}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')).join('');
+  // collapsed to one small line ("Look: Classic · Mono"); opens upward on click, closes when you pick or click away
+  const L = $('.looks'), name = v => v[0].toUpperCase() + v.slice(1);
+  L.innerHTML = `<div class="opts" hidden>${Object.entries(LOOKS).map(([k, vs]) => `<div><span>${k === 'type' ? 'Type' : 'Colour'}</span>` + vs.map(v => `<button data-k="${k}" data-v="${v}">${name(v)}</button>`).join('') + '</div>').join('')}</div><button class="cur"></button>`;
+  const opts = L.querySelector('.opts'), cur = L.querySelector('.cur');
+  looksLabel = () => { cur.textContent = `Look: ${name(look.type)} · ${name(look.colour)}`; };
   L.hidden = false;
   L.addEventListener('click', e => {
+    e.stopPropagation();
     const b = e.target.closest('button'); if (!b) return;
+    if (b === cur) { opts.hidden = !opts.hidden; return; }
     look[b.dataset.k] = b.dataset.v; store.set(b.dataset.k, b.dataset.v);
     const q = new URLSearchParams(location.search); q.set(b.dataset.k, b.dataset.v);
     history.replaceState(null, '', '?' + q.toString().replace(/=(&|$)/g, '$1') + location.hash);
     applyLook();
   });
+  addEventListener('click', () => { opts.hidden = true; });
 }
 /* pink: the small type switches colour (and now and then to italic), like CLIMAX's header */
 let blinkT = null;
