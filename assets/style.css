@@ -4,16 +4,16 @@
 @font-face{font-family:"Inter Tight";src:url(fonts/inter-tight-latin-400-normal.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
 @font-face{font-family:"Inter Tight";src:url(fonts/inter-tight-latin-400-italic.woff2) format("woff2");font-weight:400;font-style:italic;font-display:swap}
 
-/* ---------- looks (preview switcher sets data-type / data-colour on <html>) ---------- */
+@font-face{font-family:"Instrument Serif";src:url(fonts/instrument-serif-latin-400-normal.woff2) format("woff2");font-weight:400;font-display:swap}
+
+/* ---------- looks: small type is always Climax-style grotesk; the big name font is the switch ---------- */
 :root{--ink:#0a0a0a;--paper:#fff;--pink:#ff78c8;--pad:20px;
-  --ui:"Tinos","Times New Roman",Times,serif; --big:"Bodoni Moda","Didot","Bodoni 72",serif;
+  --ui:"Inter Tight","Helvetica Neue",Helvetica,Arial,sans-serif; --big:"Bodoni Moda","Didot","Bodoni 72",serif;
   --ui-case:none; --ui-track:0; --big-case:none; --big-track:-.02em;
   --accent:var(--ink); --credits-bg:var(--paper); --credits-ink:var(--ink)}
-/* August Barron: Times New Roman, tight capitals everywhere */
-:root[data-type="august"]{--big:"Tinos","Times New Roman",Times,serif;--ui-case:uppercase;--ui-track:-.02em;--big-case:uppercase;--big-track:-.045em}
-/* CLIMAX: clean grotesk with an italic */
-:root[data-type="climax"]{--ui:"Inter Tight","Helvetica Neue",Helvetica,Arial,sans-serif;--big:"Inter Tight","Helvetica Neue",Helvetica,Arial,sans-serif;--big-track:-.055em}
-/* pink: accents, colour-switching small type, pink credits */
+:root[data-type="instrument"]{--big:"Instrument Serif","Times New Roman",serif;--big-track:-.025em}
+:root[data-type="times"]{--big:"Tinos","Times New Roman",Times,serif;--big-case:uppercase;--big-track:-.045em}
+:root[data-type="climax"]{--big:"Inter Tight","Helvetica Neue",Helvetica,Arial,sans-serif;--big-track:-.055em}
 :root[data-colour="pink"]{--accent:var(--pink);--credits-bg:var(--pink);--credits-ink:#fff}
 
 *{box-sizing:border-box;margin:0;padding:0}

@@ -75,7 +75,7 @@ function place(it, size) {
 }
 
 /* ---------- her name: still, on about one slide in three, a different slice each time ---------- */
-function nameOn(it) { return it.n ?? (hash(it.f + 'n') % 3 === 0); }
+function nameOn(it) { return it.n ?? (hash(it.f + 'n') % 6 === 0); }
 function setName(it, top, h, vw, vh, m) {
   const show = !intro.running && nameOn(it);
   bigname.classList.toggle('on', show);
@@ -225,12 +225,14 @@ function renderInfo() {
 }
 
 /* ---------- looks: type + colour, previewable with ?preview ---------- */
-const LOOKS = { type: ['classic', 'august', 'climax'], colour: ['mono', 'pink'] };
+const LOOKS = { type: ['bodoni', 'instrument', 'times', 'climax'], colour: ['mono', 'pink'] };
 const qs = new URLSearchParams(location.search);
 const store = { get: k => { try { return localStorage.getItem('lm-' + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('lm-' + k, v); } catch {} } };
-const look = { type: qs.get('type') || store.get('type') || data.look?.type || 'climax', colour: qs.get('colour') || store.get('colour') || data.look?.colour || 'pink' };
+const look = { type: qs.get('type') || store.get('type') || data.look?.type || 'bodoni', colour: qs.get('colour') || store.get('colour') || data.look?.colour || 'mono' };
 let looksLabel = () => {};
 function applyLook() {
+  if (!LOOKS.type.includes(look.type)) look.type = 'bodoni';
+  if (!LOOKS.colour.includes(look.colour)) look.colour = 'mono';
   looksLabel();
   document.documentElement.dataset.type = look.type;
   document.documentElement.dataset.colour = look.colour;
@@ -241,9 +243,9 @@ function applyLook() {
 if (qs.has('preview')) {
   // collapsed to one small line ("Look: Classic · Mono"); opens upward on click, closes when you pick or click away
   const L = $('.looks'), name = v => v[0].toUpperCase() + v.slice(1);
-  L.innerHTML = `<div class="opts" hidden>${Object.entries(LOOKS).map(([k, vs]) => `<div><span>${k === 'type' ? 'Type' : 'Colour'}</span>` + vs.map(v => `<button data-k="${k}" data-v="${v}">${name(v)}</button>`).join('') + '</div>').join('')}</div><button class="cur"></button>`;
+  L.innerHTML = `<div class="opts" hidden>${Object.entries(LOOKS).map(([k, vs]) => `<div><span>${k === 'type' ? 'Name' : 'Colour'}</span>` + vs.map(v => `<button data-k="${k}" data-v="${v}">${name(v)}</button>`).join('') + '</div>').join('')}</div><button class="cur"></button>`;
   const opts = L.querySelector('.opts'), cur = L.querySelector('.cur');
-  looksLabel = () => { cur.textContent = `Look: ${name(look.type)} · ${name(look.colour)}`; };
+  looksLabel = () => { cur.textContent = `Name: ${name(look.type)} · ${name(look.colour)}`; };
   L.hidden = false;
   L.addEventListener('click', e => {
     e.stopPropagation();
