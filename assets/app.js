@@ -51,27 +51,40 @@ function place(it, size) {
   const url = it.v ? vposter(it.f) : src(it.p.slug, it.f, size);
   const bgUrl = it.v ? vposter(it.f) : src(it.p.slug, it.f, 'md');
   const box = { width: w + 'px', height: h + 'px', left: left + 'px', top: top + 'px' };
+  // the new picture is decoded off-screen, laid on top of the old one, and the old one is removed
+  // only after the new one has painted — so there is never a frame with no picture
+  const nf = it.v ? null : fresh('fg', url, it.p.title);
+  if (nf) Object.assign(nf.style, box, { objectFit: fixed ? 'cover' : '' });
+  const needBg = mode === 'frame' && bg.getAttribute('src') !== bgUrl;
+  const nb = needBg ? fresh('bg', bgUrl, '') : null;
+  if (nb) nb.setAttribute('aria-hidden', 'true');
+  const dec = el => el ? (el.decode ? el.decode() : new Promise(r => el.onload = r)).catch(() => {}) : 0;
+  const vidReady = () => new Promise(r => {
+    const want = new URL(vsrc(it.f), location.href).href;
+    if (fgv.src !== want) { fgv.poster = url; fgv.src = want; }
+    if (fgv.readyState >= 2) return r();
+    fgv.addEventListener('loadeddata', r, { once: true }); setTimeout(r, 1500);
+  });
+  const later = f => requestAnimationFrame(() => requestAnimationFrame(f));
   const apply = () => {
     if (token !== placeToken) return;
+    const oldFg = fg, oldBg = bg;
     if (it.v) {
-      const want = new URL(vsrc(it.f), location.href).href;
-      if (fgv.src !== want) { fgv.poster = url; fgv.src = want; }
       Object.assign(fgv.style, box);
       fgv.play?.().catch(() => {});
     } else {
       fgv.pause?.();
-      const n = fresh('fg', url, it.p.title);
-      Object.assign(n.style, box, { objectFit: fixed ? 'cover' : '' });
-      fg.replaceWith(n); fg = n;
+      oldFg.after(nf); fg = nf;
     }
+    if (nb) { oldBg.after(nb); bg = nb; }
     stage.classList.toggle('isvid', !!it.v);
     stage.classList.toggle('frame', mode === 'frame');
     document.body.classList.toggle('dark', mode === 'frame');
-    if (mode === 'frame' && bg.getAttribute('src') !== bgUrl) { const n = fresh('bg', bgUrl, ''); n.setAttribute('aria-hidden', 'true'); bg.replaceWith(n); bg = n; }
     setName(it, top, h, vw, vh, m);
     tone();
+    later(() => { if (!it.v && oldFg !== fg) oldFg.remove(); if (nb && oldBg !== bg) oldBg.remove(); });
   };
-  ready(url).then(() => mode === 'frame' ? ready(bgUrl) : 0).then(() => requestAnimationFrame(apply), apply);
+  Promise.all([dec(nf), dec(nb), it.v ? vidReady() : 0]).then(apply, apply);
 }
 
 /* ---------- her name: still, on about one slide in three, a different slice each time ---------- */
