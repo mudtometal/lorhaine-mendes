@@ -101,9 +101,11 @@ textarea{resize:none;display:block;overflow:hidden}
 /* preview switcher (only with ?preview in the address) */
 .looks{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:200;font:11px/1.3 "Inter Tight",Helvetica,Arial,sans-serif;text-transform:none;letter-spacing:0;white-space:nowrap;color:#0a0a0a}
 .looks[hidden]{display:none}
-.looks .cur{padding:3px 8px;background:rgba(255,255,255,.88);opacity:.75}
-.looks .cur:hover{opacity:1}
-.looks .opts{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#fff;border:1px solid #0a0a0a;padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+.looks .cur{padding:2px 4px;opacity:.32;font-size:10px}
+.looks .cur:hover{opacity:.8}
+.dark .looks{color:#fff}
+.overlay .looks{display:none}
+.looks .opts{color:#0a0a0a;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#fff;border:1px solid #0a0a0a;padding:8px 10px;display:flex;flex-direction:column;gap:6px}
 .looks .opts[hidden]{display:none}
 .looks .opts div{display:flex;gap:10px;align-items:baseline}
 .looks span{opacity:.45;min-width:40px}

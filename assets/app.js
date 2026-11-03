@@ -89,16 +89,16 @@ function place(it, size) {
 
 /* ---------- her name: still, on about one slide in three, a different slice each time ---------- */
 function nameOn(it) { return it.n ?? (hash(it.f + 'n') % 6 === 0); }
-// quirky name options: three close serifs, either changing on their own (cycle) or one per slide (shuffle)
-const SERIFS = ['"Bodoni Moda",serif', '"Instrument Serif",serif', '"Tinos",serif'];
+// shuffle (default): the name alternates Bodoni / Climax from one name slide to the next
+const SERIFS = ['"Bodoni Moda",serif', '"Inter Tight",sans-serif'], TRACK = ['-.02em', '-.055em'];
+const NAMED = FLOW.filter(x => nameOn(x));
 let lastName = null, cycleN = 0;
 function setName(it, top, h, vw, vh, m) {
   lastName = [it, top, h, vw, vh, m];
   const show = !intro.running && nameOn(it);
   const t = document.documentElement.dataset.type;
-  if (t === 'shuffle') bigname.style.setProperty('--big', SERIFS[hash(it.f + 'f') % 3]);
-  else if (t === 'cycle') bigname.style.setProperty('--big', SERIFS[cycleN % 3]);
-  else bigname.style.removeProperty('--big');
+  if (t === 'shuffle') { const k = Math.max(NAMED.indexOf(it), 0) % 2; bigname.style.setProperty('--big', SERIFS[k]); bigname.style.setProperty('--big-track', TRACK[k]); }
+  else { bigname.style.removeProperty('--big'); bigname.style.removeProperty('--big-track'); }
   bigname.classList.toggle('on', show);
   if (!show) return;
   const H = hash(it.f);
@@ -248,13 +248,13 @@ function renderInfo() {
 }
 
 /* ---------- looks: type + colour, previewable with ?preview ---------- */
-const LOOKS = { type: ['bodoni', 'instrument', 'times', 'climax', 'cycle', 'shuffle'], colour: ['mono', 'pink'] };
+const LOOKS = { type: ['shuffle', 'bodoni', 'climax'], colour: ['mono', 'pink'] };
 const qs = new URLSearchParams(location.search);
-const store = { get: k => { try { return localStorage.getItem('lm-' + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('lm-' + k, v); } catch {} } };
-const look = { type: qs.get('type') || store.get('type') || data.look?.type || 'bodoni', colour: qs.get('colour') || store.get('colour') || data.look?.colour || 'mono' };
+const store = { get: k => { try { return localStorage.getItem('lm2-' + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('lm2-' + k, v); } catch {} } };
+const look = { type: qs.get('type') || store.get('type') || data.look?.type || 'shuffle', colour: qs.get('colour') || store.get('colour') || data.look?.colour || 'mono' };
 let looksLabel = () => {};
 function applyLook() {
-  if (!LOOKS.type.includes(look.type)) look.type = 'bodoni';
+  if (!LOOKS.type.includes(look.type)) look.type = 'shuffle';
   if (!LOOKS.colour.includes(look.colour)) look.colour = 'mono';
   looksLabel();
   document.documentElement.dataset.type = look.type;
@@ -301,11 +301,11 @@ function blink() {
 /* ---------- router ---------- */
 function route() {
   const [a, b] = location.hash.replace(/^#\/?/, '').split('/');
-  Object.values(layers).forEach(l => l.hidden = true);
+  Object.values(layers).forEach(l => l.hidden = true); document.body.classList.remove('overlay');
   if (layers[a]) {
     if (g < 0) { g = 0; lastPi = 0; place(FLOW[0]); setTitle(FLOW[0].p); }
     ({ info: renderInfo, credits: renderCredits })[a]();
-    layers[a].hidden = false; cursor.classList.remove('on');
+    layers[a].hidden = false; cursor.classList.remove('on'); document.body.classList.add('overlay');
     return;
   }
   const pi = P.findIndex(p => p.slug === a);
