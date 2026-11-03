@@ -89,8 +89,16 @@ function place(it, size) {
 
 /* ---------- her name: still, on about one slide in three, a different slice each time ---------- */
 function nameOn(it) { return it.n ?? (hash(it.f + 'n') % 6 === 0); }
+// quirky name options: three close serifs, either changing on their own (cycle) or one per slide (shuffle)
+const SERIFS = ['"Bodoni Moda",serif', '"Instrument Serif",serif', '"Tinos",serif'];
+let lastName = null, cycleN = 0;
 function setName(it, top, h, vw, vh, m) {
+  lastName = [it, top, h, vw, vh, m];
   const show = !intro.running && nameOn(it);
+  const t = document.documentElement.dataset.type;
+  if (t === 'shuffle') bigname.style.setProperty('--big', SERIFS[hash(it.f + 'f') % 3]);
+  else if (t === 'cycle') bigname.style.setProperty('--big', SERIFS[cycleN % 3]);
+  else bigname.style.removeProperty('--big');
   bigname.classList.toggle('on', show);
   if (!show) return;
   const H = hash(it.f);
@@ -191,7 +199,9 @@ document.querySelectorAll('[data-go="credits"]').forEach(b => b.addEventListener
 
 function renderCredits() {
   const cur = FLOW[Math.max(g, 0)], p = cur.p;
-  layers.credits.innerHTML = `<a class="home" href="#/">${esc(data.name)}</a><button class="close">Close</button>
+  const first = p.images.find(im => !im.v) || p.images[0];
+  layers.credits.innerHTML = `<img class="cbg" src="${thumb(p, first)}" alt="" aria-hidden="true"><div class="cwash"></div>
+    <a class="home" href="#/">${esc(data.name)}</a><button class="close">Close</button>
     <div class="strip">${p.images.map((im, k) => im.v
       ? `<video src="${vsrc(im.f)}" poster="${vposter(im.f)}" data-k="${k}" muted loop playsinline autoplay></video>`
       : `<img src="${thumb(p, im)}" data-k="${k}" alt="${esc(p.title)}">`).join('')}</div>
@@ -238,7 +248,7 @@ function renderInfo() {
 }
 
 /* ---------- looks: type + colour, previewable with ?preview ---------- */
-const LOOKS = { type: ['bodoni', 'instrument', 'times', 'climax'], colour: ['mono', 'pink'] };
+const LOOKS = { type: ['bodoni', 'instrument', 'times', 'climax', 'cycle', 'shuffle'], colour: ['mono', 'pink'] };
 const qs = new URLSearchParams(location.search);
 const store = { get: k => { try { return localStorage.getItem('lm-' + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('lm-' + k, v); } catch {} } };
 const look = { type: qs.get('type') || store.get('type') || data.look?.type || 'bodoni', colour: qs.get('colour') || store.get('colour') || data.look?.colour || 'mono' };
@@ -250,7 +260,7 @@ function applyLook() {
   document.documentElement.dataset.type = look.type;
   document.documentElement.dataset.colour = look.colour;
   document.querySelectorAll('.looks button').forEach(b => b.classList.toggle('on', look[b.dataset.k] === b.dataset.v));
-  blink();
+  blink(); cycle();
   if (g >= 0) place(FLOW[g]);
 }
 if (qs.has('preview')) {
@@ -273,6 +283,12 @@ if (qs.has('preview')) {
 }
 /* pink: the small type switches colour (and now and then to italic), like CLIMAX's header */
 let blinkT = null;
+let cycleT = null;
+function cycle() {
+  clearInterval(cycleT);
+  if (look.type !== 'cycle' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  cycleT = setInterval(() => { cycleN++; if (lastName && bigname.classList.contains('on')) setName(...lastName); }, 420);
+}
 function blink() {
   clearInterval(blinkT);
   const els = [...document.querySelectorAll('.ui .home, .ui .ptitle')];

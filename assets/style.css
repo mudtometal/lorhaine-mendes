@@ -69,6 +69,10 @@ ul{list-style:none}
 /* credits = the whole shoot + who made it */
 .credits{background:var(--credits-bg);color:var(--credits-ink);display:flex;flex-direction:column;justify-content:center;gap:28px;padding:70px 0 60px}
 .credits a:hover,.credits button:hover{color:inherit;font-style:italic}
+.credits .cbg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(48px) saturate(1.15);transform:scale(1.25);z-index:0;pointer-events:none}
+.credits .cwash{position:absolute;inset:0;background:var(--credits-bg);opacity:.42;z-index:0;pointer-events:none}
+.credits .strip,.credits .meta{position:relative;z-index:1}
+.credits .home,.credits .close{z-index:2}
 .credits .strip{display:flex;gap:1px;overflow-x:auto;padding:0 var(--pad);height:56vh;scrollbar-width:none}
 .credits .strip::-webkit-scrollbar{display:none}
 .credits .strip img,.credits .strip video{height:100%;width:auto;flex:none;cursor:pointer}
