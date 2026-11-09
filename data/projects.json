@@ -25,37 +25,38 @@
      "f": "safe-01",
      "w": 2400,
      "h": 2400,
-     "m": "full"
+     "m": "full",
+     "n": true
     },
     {
      "f": "safe-02",
      "w": 1613,
      "h": 2400,
-     "m": "frame",
-     "s": 0.94,
-     "x": 50,
-     "y": 50
+     "m": "cover",
+     "n": false
     },
     {
      "f": "safe-03",
      "w": 2400,
      "h": 1613,
-     "m": "full"
+     "m": "full",
+     "n": false
     },
     {
      "f": "safe-04",
      "w": 2400,
      "h": 1613,
-     "m": "full"
+     "m": "cover",
+     "n": false
     },
     {
      "f": "safe-05",
      "w": 1613,
      "h": 2400,
      "m": "small",
+     "n": true,
      "s": 0.9,
-     "x": 56,
-     "y": 50
+     "x": 58
     }
    ]
   },
@@ -79,22 +80,24 @@
      "f": "marseille-01",
      "w": 2400,
      "h": 1946,
-     "m": "full"
+     "m": "cover",
+     "n": false
     },
     {
      "f": "marseille-02",
      "w": 1947,
      "h": 2400,
-     "m": "frame",
-     "s": 0.94,
-     "x": 50,
-     "y": 50
+     "m": "full",
+     "n": false
     },
     {
      "f": "marseille-03",
      "w": 2400,
      "h": 1946,
-     "m": "full"
+     "m": "small",
+     "n": false,
+     "s": 0.9,
+     "x": 42
     }
    ]
   },
@@ -119,30 +122,32 @@
      "w": 1585,
      "h": 2400,
      "m": "small",
+     "n": false,
      "s": 0.9,
-     "x": 44,
-     "y": 50
+     "x": 58
     },
     {
      "f": "momostar-02",
      "w": 2400,
      "h": 1567,
-     "m": "full"
+     "m": "cover",
+     "n": false
     },
     {
      "f": "momostar-03",
      "w": 2400,
      "h": 1571,
-     "m": "frame",
-     "s": 0.94,
-     "x": 50,
-     "y": 50
+     "m": "full",
+     "n": false
     },
     {
      "f": "momostar-04",
      "w": 2400,
      "h": 1611,
-     "m": "full"
+     "m": "small",
+     "n": true,
+     "s": 0.9,
+     "x": 42
     }
    ]
   },
@@ -166,40 +171,38 @@
      "f": "red-01",
      "w": 1895,
      "h": 2400,
-     "m": "full"
+     "m": "full",
+     "n": false
     },
     {
      "f": "red-02",
      "w": 1895,
      "h": 2400,
-     "m": "frame",
-     "s": 0.94,
-     "x": 50,
-     "y": 50
+     "m": "cover",
+     "n": false
     },
     {
      "f": "red-03",
      "w": 1800,
      "h": 2400,
      "m": "small",
+     "n": true,
      "s": 0.9,
-     "x": 56,
-     "y": 50
+     "x": 58
     },
     {
      "f": "red-04",
      "w": 2400,
      "h": 1871,
-     "m": "full"
+     "m": "cover",
+     "n": false
     },
     {
      "f": "red-05",
      "w": 1170,
      "h": 1560,
-     "m": "frame",
-     "s": 0.94,
-     "x": 50,
-     "y": 50
+     "m": "full",
+     "n": true
     }
    ]
   },
@@ -223,38 +226,38 @@
      "f": "make-believe-01",
      "w": 1920,
      "h": 2400,
-     "m": "full"
+     "m": "full",
+     "n": false
     },
     {
      "f": "video-01",
      "w": 1600,
      "h": 900,
-     "m": "full",
-     "v": true
+     "m": "cover",
+     "v": true,
+     "n": false
     },
     {
      "f": "make-believe-02",
      "w": 2400,
      "h": 1810,
-     "m": "full"
+     "m": "full",
+     "n": false
     },
     {
      "f": "make-believe-03",
      "w": 1920,
      "h": 2400,
-     "m": "small",
-     "s": 0.9,
-     "x": 44,
-     "y": 50
+     "m": "layer",
+     "n": false,
+     "u": "video-01"
     },
     {
      "f": "make-believe-04",
      "w": 768,
      "h": 1024,
-     "m": "frame",
-     "s": 0.94,
-     "x": 50,
-     "y": 50
+     "m": "cover",
+     "n": false
     }
    ]
   },
@@ -278,42 +281,43 @@
      "f": "fourteen-01",
      "w": 1800,
      "h": 2400,
-     "m": "full"
+     "m": "full",
+     "n": false
     },
     {
      "f": "fourteen-02",
      "w": 1092,
      "h": 1360,
      "m": "small",
+     "n": false,
      "s": 0.9,
-     "x": 56,
-     "y": 50
+     "x": 42
     },
     {
      "f": "fourteen-03",
      "w": 1924,
      "h": 2400,
-     "m": "frame",
-     "s": 0.94,
-     "x": 50,
-     "y": 50
+     "m": "full",
+     "n": false
     },
     {
      "f": "fourteen-04",
      "w": 1946,
      "h": 2400,
-     "m": "full"
+     "m": "cover",
+     "n": false
     },
     {
      "f": "fourteen-05",
      "w": 1946,
      "h": 2400,
      "m": "small",
+     "n": false,
      "s": 0.9,
-     "x": 44,
-     "y": 50
+     "x": 58
     }
    ]
   }
- ]
+ ],
+ "creditsLayout": "strip"
 }

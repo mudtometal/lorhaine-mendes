@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Studio — Lorhaine Mendes</title>
+<link rel="stylesheet" href="studio.css?v=1">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="../" target="_blank" rel="noopener">Lorhaine Mendes</a><span class="sub">Studio</span>
+  <div class="status"><span class="state"></span><button class="discard" hidden>Discard</button><button class="publish">Publish</button></div>
+</header>
+
+<main>
+  <section class="edit">
+    <div class="block flow">
+      <div class="bhead"><h2>Order</h2><span class="hint"></span><button class="mix">Mix the layouts for me</button></div>
+      <div class="seq"></div>
+    </div>
+    <div class="shoots"></div>
+    <button class="newshoot">+ New shoot</button>
+    <div class="block site">
+      <div class="bhead"><h2>About</h2></div>
+      <label class="field"><span>Bio</span><textarea class="bio" rows="2"></textarea></label>
+      <label class="field"><span>Instagram</span><input class="ig" placeholder="handle, without @"></label>
+      <div class="field"><span>Credits page</span><div class="clayouts"></div></div>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div class="pv">
+      <div class="pvbar"><button data-pv="both" class="on">Both</button><button data-pv="desk">Desktop</button><button data-pv="phone">Phone</button><span class="pvsp"></span><button class="pvopen">Open full size</button></div>
+      <div class="frames">
+        <div class="fr desk"><div class="scale"><iframe title="Desktop preview"></iframe></div></div>
+        <div class="fr phone"><div class="scale"><iframe title="Phone preview"></iframe></div></div>
+      </div>
+    </div>
+    <div class="insp"><p class="empty">Click any picture to choose how it shows.</p></div>
+  </aside>
+</main>
+
+<dialog class="connect">
+  <form method="dialog">
+    <h2>Connect publishing</h2>
+    <p>Paste the publishing key once. It stays on this computer only.</p>
+    <input class="token" type="password" autocomplete="off" placeholder="Publishing key">
+    <div class="row"><button value="cancel">Cancel</button><button value="ok" class="primary">Connect</button></div>
+  </form>
+</dialog>
+<input class="filepick" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" multiple hidden>
+<script src="studio.js?v=1" type="module"></script>
+</body>
+</html>
