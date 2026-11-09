@@ -212,10 +212,9 @@ const openLayer = () => Object.keys(layers).find(k => !layers[k].hidden);
 const close = () => { location.hash = hashFor(Math.max(g, 0)); };
 document.querySelectorAll('[data-go="credits"]').forEach(b => b.addEventListener('click', () => { location.hash = '#/credits'; }));
 
-/* ---------- credits: white, big pictures; three layouts to compare (switch shows with ?preview) ---------- */
+/* ---------- credits: white, big pictures; layout chosen in the website editor ---------- */
 const CL = { strip: 'Strip', stack: 'Stack', grid: 'Grid' };
-const store = { get: k => { try { return localStorage.getItem('lm3-' + k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem('lm3-' + k, v); } catch {} } };
-let creditsLayout = (qs.get('credits') in CL && qs.get('credits')) || (qs.has('preview') && store.get('credits') in CL && store.get('credits')) || (data.creditsLayout in CL ? data.creditsLayout : 'strip');
+const creditsLayout = (DRAFT && qs.get('credits') in CL && qs.get('credits')) || (data.creditsLayout in CL ? data.creditsLayout : 'strip');
 function renderCredits() {
   const cur = FLOW[Math.max(g, 0)], p = cur.p, L = layers.credits;
   L.className = 'layer credits l-' + creditsLayout;
@@ -224,14 +223,12 @@ function renderCredits() {
     : `<img src="${src(p.slug, im.f, creditsLayout === 'strip' || !mobile() ? (hi() ? 'web' : 'md') : 'md')}" data-k="${k}" alt="${esc(p.title)}" style="aspect-ratio:${im.w}/${im.h}">`).join('');
   const meta = `<div class="meta"><h2>${esc(p.title)}</h2><dl>${(p.credits || []).filter(c => c.role || c.name).map(c => `<dt>${esc(c.role)}</dt><dd>${esc(c.name)}</dd>`).join('')}
       ${p.client ? `<dt>Client</dt><dd>${esc(p.client)}</dd>` : ''}${p.year ? `<dt>Year</dt><dd>${esc(p.year)}</dd>` : ''}</dl></div>`;
-  const sw = qs.has('preview') ? `<div class="clay">${Object.entries(CL).map(([k, v]) => `<button data-l="${k}" class="${k === creditsLayout ? 'on' : ''}">${v}</button>`).join('')}</div>` : '';
   L.innerHTML = `<a class="home" href="#/">${esc(data.name)}</a><button class="close">Close</button>
-    ${creditsLayout === 'strip' ? `<div class="media">${media}</div>${meta}` : `${meta}<div class="media">${media}</div>`}${sw}`;
+    ${creditsLayout === 'strip' ? `<div class="media">${media}</div>${meta}` : `${meta}<div class="media">${media}</div>`}`;
   L.querySelector('.close').onclick = close;
   L.querySelectorAll('.media [data-k]').forEach(el => el.onclick = () => {
     const i = FLOW.findIndex(x => x.pi === cur.pi && x.k === +el.dataset.k); g = i; lastPi = cur.pi; location.hash = hashFor(i);
   });
-  L.querySelectorAll('.clay button').forEach(b => b.onclick = () => { creditsLayout = b.dataset.l; store.set('credits', creditsLayout); renderCredits(); });
   const strip = L.querySelector('.l-strip .media');
   if (strip) strip.addEventListener('wheel', e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { strip.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
 }
