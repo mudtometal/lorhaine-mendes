@@ -1,4 +1,4 @@
-/* Lorhaine Mendes — Editor
+/* Lorhaine Mendes · Editor
    Works like a slideshow editor: pick a project on the left, see the real slide in the middle,
    reorder slides in the strip below, set how the selected slide shows on the right.
    Everything saves as a draft automatically; Publish puts it live.                           */
@@ -58,34 +58,37 @@ function writeDraft() {
 }
 function status() {
   const d = dirty(), s = $('.state');
-  s.textContent = d ? 'Draft — not live yet' : 'Live';
+  s.textContent = d ? 'Unpublished changes' : 'All changes published';
   s.classList.toggle('dirty', d);
   $('.top .pub').disabled = !d;
   $('.discard').hidden = !d;
 }
 
 /* ---------- the live slide in the middle ---------- */
-let device = 'desk', ver = 0, loadedVer = -1;
-const frame = $('.frame iframe');
+let device = 'desk', ver = 0;
+const frames = $$('.scaler iframe');
 function target() {
   if (V.page === 'info') return { hash: '#/info' };
   const p = P(); if (!p || !p.images.length) return { hash: '#/' };
   if (V.page === 'credits' || tab === 'project') return { hash: `#/${p.slug}/1`, then: '#/credits' };
   return { hash: `#/${p.slug}/${V.k + 1}` };
 }
+let front = frames[0];
 function go() {
   const t = target(), cl = D.creditsLayout || 'strip';
-  if (loadedVer === ver && frame.contentWindow?.location) {
-    try {
-      const w = frame.contentWindow;
-      w.location.hash = t.hash;
-      if (t.then) setTimeout(() => { w.location.hash = t.then; }, 60);
-      return;
-    } catch {}
+  if (+front.dataset.ver === ver) {                       // same draft: just move to the slide
+    try { const w = front.contentWindow; w.location.hash = t.hash; if (t.then) setTimeout(() => { w.location.hash = t.then; }, 60); return; } catch {}
   }
-  const v = ver;
-  frame.onload = () => { loadedVer = v; if (t.then) setTimeout(() => { try { frame.contentWindow.location.hash = t.then; } catch {} }, 120); };
-  frame.src = `../?draft&credits=${cl}&v=${v}${t.hash}`;
+  const back = frames.find(f => f !== front), v = ver;
+  back.onload = () => {
+    back.onload = null;
+    if (t.then) setTimeout(() => { try { back.contentWindow.location.hash = t.then; } catch {} }, 80);
+    setTimeout(() => {                                    // let the picture paint, then swap
+      if (v !== ver) return;
+      back.dataset.ver = v; back.classList.remove('back'); front.classList.add('back'); front = back;
+    }, t.then ? 380 : 260);
+  };
+  back.src = `../?draft&credits=${cl}&v=${v}${t.hash}`;
 }
 let rT = null;
 function refresh() { ver++; clearTimeout(rT); rT = setTimeout(go, 280); }
@@ -93,7 +96,7 @@ function fit() {
   const c = $('.canvas'), W = c.clientWidth - 48, H = c.clientHeight - 48;
   const [fw, fh] = device === 'desk' ? [1440, 900] : [390, 844];
   const s = Math.min(W / fw, H / fh);
-  frame.style.width = fw + 'px'; frame.style.height = fh + 'px';
+  frames.forEach(f => { f.style.width = fw + 'px'; f.style.height = fh + 'px'; });
   $('.scaler').style.transform = `scale(${s})`;
   const f = $('.frame'); f.style.width = fw * s + 'px'; f.style.height = fh * s + 'px'; f.classList.toggle('phone', device === 'phone');
 }
@@ -132,11 +135,11 @@ function renderStrip() {
   if (V.page) { strip.hidden = true; return; }
   strip.hidden = false;
   const p = P();
-  $('.sl').textContent = p ? `${p.title || 'Untitled'} — ${p.images.length} slide${p.images.length === 1 ? '' : 's'}` : '';
+  $('.sl').innerHTML = p ? `${esc(p.title) || 'Untitled'}<em>${p.images.length} slide${p.images.length === 1 ? '' : 's'}</em>` : '';
   $('.dpn').textContent = p?.title || '';
   $('.slides').innerHTML = (p?.images || []).map((im, k) => `
     <div class="sld ${k === V.k || multi.has(k) ? 'on' : ''}" draggable="true" data-k="${k}">
-      <div class="im"><img src="${thumb(p, im)}" alt="" draggable="false">${im.v ? '<span class="v">▶ Video</span>' : ''}</div>
+      <div class="im"><img src="${thumb(p, im)}" alt="" draggable="false">${im.v ? '<span class="v">Video</span>' : ''}</div>
       <div class="cap">${k + 1} · ${LAYOUTS[modeOf(im)][0]}</div>
     </div>`).join('') +
     (uploading ? `<div class="upl">Adding ${uploading}…</div>` : '') +
@@ -199,7 +202,7 @@ function slideHTML(p) {
     ${!many && m === 'small' ? `<div class="sec"><span class="lab">Position</span><div class="seg">${[['Left', 42], ['Centre', 50], ['Right', 58]].map(([t, x]) => `<button data-x="${x}" class="${(im.x ?? 50) === x ? 'on' : ''}">${t}</button>`).join('')}</div></div>` : ''}
     ${!many && m === 'cover' && !im.v ? `<div class="sec"><span class="lab">Keep in view</span><div class="seg">${[['Top', '50% 15%'], ['Middle', ''], ['Bottom', '50% 85%']].map(([t, v]) => `<button data-fp="${v}" class="${(im.fp || '') === v ? 'on' : ''}">${t}</button>`).join('')}</div><p class="help">Which part stays visible when the screen crops it.</p></div>` : ''}
     ${!many && m === 'layer' ? `<div class="sec"><span class="lab">Video behind it</span>${vids.length ? `<div class="unders">${vids.map(x => `<button data-u="${x.im.f}" class="${(im.u || vids[0].im.f) === x.im.f ? 'on' : ''}" title="${esc(x.p.title)}"><img src="${thumb(x.p, x.im)}" alt=""></button>`).join('')}</div>` : '<p class="help">Add a video to any project first.</p>'}</div>` : ''}
-    ${!many ? `<div class="sec"><button class="sw ${im.n && nameOk(m) ? 'on' : ''}" ${nameOk(m) ? '' : 'disabled'}><i></i>Her name behind this slide</button><p class="help">${nameOk(m) ? 'Shows “Lorhaine Mendes” large behind the picture. Best on a few slides only.' : 'Only works with Large or Small — the picture would cover it.'}</p></div>` : ''}
+    ${!many ? `<div class="sec"><button class="sw ${im.n && nameOk(m) ? 'on' : ''}" ${nameOk(m) ? '' : 'disabled'}><i></i>Her name behind this slide</button><p class="help">${nameOk(m) ? 'Shows “Lorhaine Mendes” large behind the picture. Best on a few slides only.' : 'Available with Large or Small. Other layouts would cover it.'}</p></div>` : ''}
     <div class="sec"><button class="danger del">${many ? `Delete ${sel.length} slides` : 'Delete slide'}</button></div>`;
 }
 function bindSlide(el, p) {
@@ -212,7 +215,7 @@ function bindSlide(el, p) {
   const sw = $('.sw', el); if (sw) sw.onclick = () => edit(() => { im.n = !im.n; });
   $('.del', el).onclick = () => {
     edit(() => { sel.sort((a, b) => b - a).forEach(k => p.images.splice(k, 1)); V.k = Math.max(0, Math.min(Math.min(...sel), p.images.length - 1)); multi.clear(); });
-    toast(sel.length > 1 ? 'Slides deleted — Undo to bring them back' : 'Slide deleted — Undo to bring it back');
+    toast(sel.length > 1 ? 'Slides deleted' : 'Slide deleted', true);
   };
 }
 function setLayout(im, m) {
@@ -249,7 +252,7 @@ function bindProject(el, p) {
   $('.delp', el).onclick = () => {
     if (!confirm(`Delete “${p.title}” and all its slides?`)) return;
     edit(() => { D.projects.splice(V.pi, 1); V = { pi: Math.max(0, V.pi - 1), k: 0, page: null }; });
-    toast('Project deleted — Undo to bring it back');
+    toast('Project deleted', true);
   };
 }
 
@@ -299,12 +302,12 @@ async function addFiles(files) {
     try {
       const f = nextName(p.slug);
       if (file.type.startsWith('video/')) {
-        if (file.size > 90 * 1024 * 1024) throw new Error(`${file.name} is over 90 MB — export it smaller first.`);
+        if (file.size > 90 * 1024 * 1024) throw new Error(`${file.name} is over 90 MB. Export a smaller version and try again.`);
         const { w, h, poster } = await videoInfo(file);
         pending[f] = { mp4: URL.createObjectURL(file), poster: URL.createObjectURL(poster), files: { [`media/video/${f}.mp4`]: file, [`media/video/${f}.jpg`]: poster } };
         p.images.push({ f, w, h, m: 'cover', v: true, n: false });
       } else if (file.type.startsWith('image/')) {
-        const bmp = await createImageBitmap(file).catch(() => { throw new Error(`${file.name} can’t be opened here — export it as JPG.`); });
+        const bmp = await createImageBitmap(file).catch(() => { throw new Error(`${file.name} can’t be opened here. Export it as a JPG.`); });
         const web = await resize(bmp, 2400, .86), md = await resize(bmp, 1400, .84);
         pending[f] = { web: URL.createObjectURL(web.blob), md: URL.createObjectURL(md.blob), files: { [`media/web/${p.slug}/${f}.webp`]: web.blob, [`media/md/${p.slug}/${f}.webp`]: md.blob } };
         p.images.push({ f, w: web.w, h: web.h, m: 'full', n: false });
@@ -326,7 +329,7 @@ function videoInfo(file) {
     const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = URL.createObjectURL(file);
     v.onloadeddata = () => { v.currentTime = Math.min(.2, (v.duration || 1) / 4); };
     v.onseeked = () => { const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); c.toBlob(b => ok({ w: v.videoWidth, h: v.videoHeight, poster: b }), 'image/jpeg', .85); };
-    v.onerror = () => no(new Error(`${file.name} can’t play in the browser — export it as MP4.`));
+    v.onerror = () => no(new Error(`${file.name} can’t play in a browser. Export it as an MP4.`));
   });
 }
 
@@ -368,10 +371,10 @@ async function publish() {
     published = structuredClone(out);
     for (const b of Object.values(pending)) delete b.files;
     localStorage.removeItem('lm-studio');
-    toast('Published — the site updates within a minute');
+    toast('Published. The site updates within a minute.');
   } catch (err) {
-    if ([401, 403, 404].includes(err.status)) { localStorage.removeItem('lm-gh-token'); toast('The publishing key didn’t work — connect again'); }
-    else toast('Couldn’t publish — check your internet and try again');
+    if ([401, 403, 404].includes(err.status)) { localStorage.removeItem('lm-gh-token'); toast('The publishing key didn’t work. Please connect again.'); }
+    else toast('Couldn’t publish. Check your connection and try again.');
   }
   btn.textContent = 'Publish'; status();
 }
@@ -386,7 +389,13 @@ $('.discard').onclick = () => {
   localStorage.removeItem('lm-studio'); V = { pi: 0, k: 0, page: null }; multi.clear(); saved(); render();
 };
 addEventListener('beforeunload', e => { if (Object.values(pending).some(b => b.files)) { e.preventDefault(); e.returnValue = ''; } });
-function toast(msg) { $$('.toast').forEach(t => t.remove()); const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); }
+function toast(msg, withUndo = false) {
+  $$('.toast').forEach(t => t.remove());
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+  if (withUndo) { const b = document.createElement('button'); b.textContent = 'Undo'; b.onclick = () => { t.remove(); undo(); }; t.appendChild(b); }
+  document.body.appendChild(t); requestAnimationFrame(() => t.classList.add('in'));
+  setTimeout(() => { t.classList.remove('in'); setTimeout(() => t.remove(), 200); }, withUndo ? 5000 : 2600);
+}
 
 /* ---------- go ---------- */
 writeDraft(); status(); render(); fit(); go();
