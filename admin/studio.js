@@ -1,291 +1,323 @@
-/* Lorhaine Mendes — Website editor
-   Edits data/projects.json and adds media. Changes show in the preview straight away (the real
-   site, reading the unsaved draft). "Publish changes" sends everything live in one go.        */
+/* Lorhaine Mendes — Editor
+   Works like a slideshow editor: pick a project on the left, see the real slide in the middle,
+   reorder slides in the strip below, set how the selected slide shows on the right.
+   Everything saves as a draft automatically; Publish puts it live.                           */
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const REPO = { owner: 'mudtometal', repo: 'lorhaine-mendes', branch: 'main' };
 
 const LAYOUTS = {
-  cover: ['Full screen', 'Fills the whole screen'],
-  full: ['Large', 'Whole picture, big, white around it'],
-  small: ['Small', 'Whole picture, smaller, off-centre'],
-  layer: ['Layered', 'Picture on top of a video playing behind'],
+  cover: ['Full screen', 'Fills the screen'],
+  full: ['Large', 'Whole picture, big'],
+  small: ['Small', 'Smaller, off-centre'],
+  layer: ['Layered', 'On top of a video'],
 };
-const CREDITS = {
-  strip: ['Strip', 'One row of tall pictures that scrolls sideways, credits underneath.'],
-  stack: ['Stack', 'Credits stay on the left, pictures run down the right.'],
-  grid: ['Grid', 'Credits on top, pictures in two big columns.'],
-};
+const CREDITS = { strip: ['Strip', 'Pictures in one row, scroll sideways'], stack: ['Stack', 'Credits left, pictures down the right'], grid: ['Grid', 'Credits on top, two columns'] };
 const modeOf = im => im.m === 'frame' ? 'full' : LAYOUTS[im.m] ? im.m : 'full';
-const nameAllowed = m => m === 'full' || m === 'small';
+const nameOk = m => m === 'full' || m === 'small';
+const art = k => `<div class="art ${k}">${'<i></i>'.repeat(k === 'strip' ? 3 : k === 'grid' ? 4 : 1)}${CREDITS[k] ? '<u></u>' : ''}</div>`;
 
-/* ---------- state ---------- */
+/* ---------- data ---------- */
 let published = await fetch('../data/projects.json', { cache: 'no-cache' }).then(r => r.json());
 let D = structuredClone(published);
-try { const saved = JSON.parse(localStorage.getItem('lm-studio') || 'null'); if (saved && saved.base === JSON.stringify(published)) D = saved.data; } catch {}
-const pending = {};            // f -> object URLs for preview + files to upload
-let selected = null;           // index of the selected picture on the project page
-let uploading = 0;
-
-function clean(d) { return JSON.parse(JSON.stringify(d, (k, v) => k.startsWith('_') ? undefined : v)); }
+try { const s = JSON.parse(localStorage.getItem('lm-studio') || 'null'); if (s && s.base === JSON.stringify(published)) D = s.data; } catch {}
+const pending = {};
+const clean = d => JSON.parse(JSON.stringify(d, (k, v) => k.startsWith('_') ? undefined : v));
 const thumb = (p, im, size = 'md') => im.v ? (pending[im.f]?.poster || `../media/video/${im.f}.jpg`) : (pending[im.f]?.[size] || `../media/${size}/${p.slug}/${im.f}.webp`);
 const allItems = () => D.projects.flatMap((p, pi) => p.images.map((im, k) => ({ p, pi, k, im })));
 const dirty = () => JSON.stringify(clean(D)) !== JSON.stringify(published) || Object.values(pending).some(b => b.files);
-const count = p => { const v = p.images.filter(i => i.v).length, ph = p.images.length - v; return [ph && `${ph} photo${ph > 1 ? 's' : ''}`, v && `${v} video${v > 1 ? 's' : ''}`].filter(Boolean).join(' · ') || 'Empty'; };
+const countOf = p => { const v = p.images.filter(i => i.v).length, ph = p.images.length - v; return [ph && `${ph} photo${ph > 1 ? 's' : ''}`, v && `${v} video${v > 1 ? 's' : ''}`].filter(Boolean).join(', ') || 'No slides yet'; };
 
-/* ---------- saving the draft ---------- */
-let pvT = null;
-function changed(rerender = true) {
+/* ---------- what's selected ---------- */
+let V = { pi: 0, k: 0, page: null };          // page: 'info' | 'credits' | null
+let multi = new Set();                          // extra slides selected with ⇧ / ⌘
+let tab = 'slide';                              // right panel: 'slide' | 'project'
+let uploading = 0;
+const P = () => D.projects[V.pi];
+
+/* ---------- undo ---------- */
+const history = [];
+function snapshot() { history.push(JSON.stringify(D)); if (history.length > 80) history.shift(); $('.undo').disabled = false; }
+function undo() {
+  if (!history.length) return;
+  D = JSON.parse(history.pop()); $('.undo').disabled = !history.length;
+  V.pi = Math.min(V.pi, D.projects.length - 1); V.k = Math.min(V.k, Math.max(0, (P()?.images.length || 1) - 1)); multi.clear();
+  saved(); render(); toast('Undone');
+}
+$('.undo').onclick = undo;
+// every change: snapshot first, then mutate, then commit()
+function edit(fn) { snapshot(); fn(); saved(); render(); }
+function saved() {
   try { localStorage.setItem('lm-studio', JSON.stringify({ base: JSON.stringify(published), data: D })); } catch {}
-  writeDraft();
-  if (rerender) render();
-  status();
-  clearTimeout(pvT); pvT = setTimeout(reloadPreview, 500);
+  writeDraft(); status(); refresh();
 }
 function writeDraft() {
   const blobs = Object.fromEntries(Object.entries(pending).map(([f, b]) => [f, { md: b.md, web: b.web, poster: b.poster, mp4: b.mp4 }]));
   try { localStorage.setItem('lm-draft', JSON.stringify({ ...D, _blobs: blobs })); } catch {}
 }
 function status() {
-  const d = dirty(), chip = $('.chip');
-  chip.textContent = d ? 'Unpublished changes' : 'Website is up to date';
-  chip.classList.toggle('dirty', d);
-  $('.publish').disabled = !d;
+  const d = dirty(), s = $('.state');
+  s.textContent = d ? 'Draft — not live yet' : 'Live';
+  s.classList.toggle('dirty', d);
+  $('.top .pub').disabled = !d;
   $('.discard').hidden = !d;
 }
 
-/* ---------- preview: the real site reading the draft ---------- */
-let pvDevice = 'desk', pvTarget = { hash: '#/' };
-const frame = $('.pframe iframe');
-function setPreview(t) { pvTarget = t; reloadPreview(); }
-function reloadPreview() {
-  const cl = D.creditsLayout || 'strip';
-  if (pvTarget.credits) {
-    frame.src = `../?draft&credits=${cl}&t=${Date.now()}#/${pvTarget.credits}/1`;
-    frame.onload = () => { frame.onload = null; setTimeout(() => { try { frame.contentWindow.location.hash = '#/credits'; } catch {} }, 250); };
-  } else { frame.onload = null; frame.src = `../?draft&t=${Date.now()}${pvTarget.hash}`; }
+/* ---------- the live slide in the middle ---------- */
+let device = 'desk', ver = 0, loadedVer = -1;
+const frame = $('.frame iframe');
+function target() {
+  if (V.page === 'info') return { hash: '#/info' };
+  const p = P(); if (!p || !p.images.length) return { hash: '#/' };
+  if (V.page === 'credits' || tab === 'project') return { hash: `#/${p.slug}/1`, then: '#/credits' };
+  return { hash: `#/${p.slug}/${V.k + 1}` };
 }
-function sizePreview() {
-  const W = $('.pcard').clientWidth - 28, [fw, fh] = pvDevice === 'desk' ? [1440, 900] : [390, 844];
-  const s = pvDevice === 'desk' ? W / fw : Math.min(W / fw, 600 / fh);
-  Object.assign(frame.style, { width: fw + 'px', height: fh + 'px' });
-  $('.pscale').style.transform = `scale(${s})`;
-  Object.assign($('.pframe').style, { width: fw * s + 'px', height: fh * s + 'px' });
-}
-$$('.tabs [data-pv]').forEach(b => b.onclick = () => { pvDevice = b.dataset.pv; $$('.tabs button').forEach(x => x.classList.toggle('on', x === b)); sizePreview(); });
-addEventListener('resize', sizePreview);
-
-/* ---------- views ---------- */
-const view = $('.view');
-function route() {
-  const h = location.hash.replace(/^#\/?/, '');
-  const [a, b] = h.split('/');
-  $$('.nav [data-nav]').forEach(n => n.classList.toggle('on', n.dataset.nav === (a === 'p' ? 'projects' : a || 'projects')));
-  selected = null;
-  if (a === 'p' && D.projects[+b]) { const p = D.projects[+b]; setPreview(p.images.length ? { hash: `#/${p.slug}/1` } : { hash: '#/' }); }
-  else if (a === 'settings') setPreview({ credits: D.projects[0]?.slug });
-  else setPreview({ hash: '#/' });
-  render();
-  scrollTo(0, 0);
-}
-function render() {
-  const h = location.hash.replace(/^#\/?/, ''), [a, b] = h.split('/');
-  if (a === 'p' && D.projects[+b]) return renderProject(+b);
-  if (a === 'about') return renderAbout();
-  if (a === 'settings') return renderSettings();
-  renderProjects();
-}
-addEventListener('hashchange', route);
-
-/* projects list */
-function renderProjects() {
-  view.innerHTML = `
-    <div class="pagehead"><h1>Projects</h1><span class="sp"></span><button class="btn primary newp">+ New project</button></div>
-    <div class="card">
-      <div class="chead"><p class="help">The order here is the order on the website. Click a project to edit its photos, videos and credits.</p></div>
-      <div class="plist">${D.projects.map((p, i) => `
-        <div class="prow">
-          <a href="#/p/${i}" class="cover" style="background-image:url('${p.images[0] ? thumb(p, p.images.find(x => !x.v) || p.images[0]) : ''}')" aria-label="Edit ${esc(p.title)}"></a>
-          <a href="#/p/${i}" class="t" style="text-decoration:none"><b>${esc(p.title) || 'Untitled'}</b><span>${count(p)}</span></a>
-          <div class="ra">
-            <button class="iconbtn" data-up="${i}" ${i ? '' : 'disabled'} title="Move up" aria-label="Move up">↑</button>
-            <button class="iconbtn" data-down="${i}" ${i < D.projects.length - 1 ? '' : 'disabled'} title="Move down" aria-label="Move down">↓</button>
-            <a class="btn small" href="#/p/${i}">Edit</a>
-          </div>
-        </div>`).join('')}
-      </div>
-    </div>`;
-  $('.newp').onclick = newProject;
-  $$('[data-up]').forEach(b => b.onclick = () => { const i = +b.dataset.up; [D.projects[i - 1], D.projects[i]] = [D.projects[i], D.projects[i - 1]]; changed(); });
-  $$('[data-down]').forEach(b => b.onclick = () => { const i = +b.dataset.down; [D.projects[i + 1], D.projects[i]] = [D.projects[i], D.projects[i + 1]]; changed(); });
-}
-function newProject() {
-  let slug = 'project', n = 1; while (D.projects.some(p => p.slug === slug)) slug = 'project-' + ++n;
-  D.projects.push({ slug, title: 'New project', client: '', year: '', credits: [{ role: 'Styling', name: D.name || '' }, { role: 'Photography', name: '' }], images: [] });
-  changed(false); location.hash = `#/p/${D.projects.length - 1}`;
-}
-
-/* one project */
-function renderProject(pi) {
-  const p = D.projects[pi], items = p.images.map(modeOf);
-  let run = 1, rep = '';
-  for (let i = 1; i < items.length; i++) { run = items[i] === items[i - 1] ? run + 1 : 1; if (run >= 3) rep = LAYOUTS[items[i]][0]; }
-  const videos = allItems().filter(x => x.im.v);
-  view.innerHTML = `
-    <div class="pagehead"><a class="back" href="#/">← All projects</a></div>
-    <div class="pagehead"><h1>${esc(p.title) || 'Untitled'}</h1><span class="sp"></span><button class="btn small danger delp">Delete project</button></div>
-
-    <div class="card">
-      <div class="chead"><h2>Details</h2></div>
-      <div class="grid3">
-        <label class="f"><span>Project name</span><input class="input" data-k="title" value="${esc(p.title)}"></label>
-        <label class="f"><span>Client <em class="help">(optional)</em></span><input class="input" data-k="client" value="${esc(p.client)}"></label>
-        <label class="f"><span>Year <em class="help">(optional)</em></span><input class="input" data-k="year" value="${esc(p.year)}"></label>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="chead"><h2>Credits</h2><span class="help">Shown on the credits page for this project.</span><span class="sp"></span><button class="btn small showcred">Preview credits page</button></div>
-      <div class="ctable">
-        ${(p.credits || []).length ? '<div class="chdr"><span>Role</span><span>Name</span><span></span></div>' : ''}
-        ${(p.credits || []).map((c, ci) => `<div class="crow"><input class="input" data-ci="${ci}" data-f="role" value="${esc(c.role)}" placeholder="e.g. Photography"><input class="input" data-ci="${ci}" data-f="name" value="${esc(c.name)}" placeholder="Name"><button class="btn small" data-rmc="${ci}">Remove</button></div>`).join('')}
-        <div><button class="btn small addc">+ Add credit</button></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="chead"><h2>Photos &amp; videos</h2><span class="sp"></span><button class="btn small mix">Suggest layouts</button></div>
-      <p class="help" style="margin:-8px 0 16px">They appear on the website in this order. For each one, choose a layout:</p>
-      <div class="legend">${Object.entries(LAYOUTS).map(([k, [t, d]]) => `<div class="lg"><span class="mini ${k}"><i></i></span><div><b>${t}</b><span>${d}</span></div></div>`).join('')}</div>
-      ${rep ? `<div class="notice">Three or more in a row use “${rep}”. Mixing layouts keeps the site from feeling repetitive.</div>` : ''}
-      <div class="mgrid">
-        ${p.images.map((im, k) => {
-          const m = modeOf(im), u = im.u || videos[0]?.im.f;
-          return `<div class="mcard ${selected === k ? 'sel' : ''}" data-k="${k}">
-            <div class="thumb" data-pv="${k}" title="Show in preview"><img src="${thumb(p, im)}" alt=""><span class="badge n">${k + 1}</span>${im.v ? '<span class="badge v">Video</span>' : ''}</div>
-            <div class="body">
-              <label class="f"><span>Layout</span><select class="input" data-m="${k}">${Object.entries(LAYOUTS).filter(([s]) => !(im.v && s === 'layer')).map(([s, [t]]) => `<option value="${s}" ${s === m ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-              ${m === 'small' ? `<label class="f"><span>Position</span><select class="input" data-x="${k}">${[['Left', 42], ['Centre', 50], ['Right', 58]].map(([t, x]) => `<option value="${x}" ${(im.x ?? 50) === x ? 'selected' : ''}>${t}</option>`).join('')}</select></label>` : ''}
-              ${m === 'cover' && !im.v ? `<label class="f"><span>Keep in view</span><select class="input" data-fp="${k}">${[['Middle', ''], ['Top', '50% 15%'], ['Bottom', '50% 85%']].map(([t, v]) => `<option value="${v}" ${(im.fp || '') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>` : ''}
-              ${m === 'layer' ? `<label class="f"><span>Video behind it</span><select class="input" data-u="${k}">${videos.length ? videos.map((x, vi) => `<option value="${x.im.f}" ${u === x.im.f ? 'selected' : ''}>${esc(x.p.title)} — video ${vi + 1}</option>`).join('') : '<option>No videos yet — add one first</option>'}</select></label>` : ''}
-              <label class="check ${nameAllowed(m) ? '' : 'off'}"><input type="checkbox" data-n="${k}" ${im.n && nameAllowed(m) ? 'checked' : ''} ${nameAllowed(m) ? '' : 'disabled'}>Show her name behind${nameAllowed(m) ? '' : ' (Large or Small only)'}</label>
-              <div class="row">
-                <button class="iconbtn" data-l="${k}" ${k ? '' : 'disabled'} title="Move earlier" aria-label="Move earlier">←</button>
-                <button class="iconbtn" data-r="${k}" ${k < p.images.length - 1 ? '' : 'disabled'} title="Move later" aria-label="Move later">→</button>
-                <span class="sp"></span>
-                <button class="btn small danger" data-del="${k}">Delete</button>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
-        ${uploading ? `<div class="uploading">Adding ${uploading} file${uploading > 1 ? 's' : ''}…</div>` : ''}
-        <button class="drop"><b>+ Add photos or videos</b><span>Click, or drag files here.<br>JPG or PNG photos, MP4 videos.</span></button>
-      </div>
-    </div>`;
-
-  $$('[data-k]', view).forEach(i => { if (i.tagName === 'INPUT') i.oninput = () => { p[i.dataset.k] = i.value; if (i.dataset.k === 'title') $('h1', view.children[1]).textContent = i.value || 'Untitled'; changed(false); }; });
-  $('.delp').onclick = () => { if (confirm(`Delete the project “${p.title}” from the website?`)) { D.projects.splice(pi, 1); changed(false); location.hash = '#/'; } };
-  $$('[data-ci]').forEach(i => i.oninput = () => { p.credits[+i.dataset.ci][i.dataset.f] = i.value; changed(false); });
-  $$('[data-rmc]').forEach(b => b.onclick = () => { p.credits.splice(+b.dataset.rmc, 1); changed(); });
-  $('.addc').onclick = () => { (p.credits ||= []).push({ role: '', name: '' }); changed(); $$('.crow input[data-f="role"]').at(-1)?.focus(); };
-  $('.showcred').onclick = () => p.images.length && setPreview({ credits: p.slug });
-  const pick = k => { selected = k; $$('.mcard').forEach(c => c.classList.toggle('sel', +c.dataset.k === k)); setPreview({ hash: `#/${p.slug}/${k + 1}` }); };
-  $$('[data-pv]', view).forEach(t => t.onclick = () => pick(+t.dataset.pv));
-  const after = k => { selected = k; changed(); pvTarget = { hash: `#/${p.slug}/${k + 1}` }; };
-  $$('[data-m]').forEach(s => s.onchange = () => {
-    const im = p.images[+s.dataset.m]; im.m = s.value;
-    if (im.m === 'small') { im.s = .9; im.x ??= 58; } else { delete im.s; delete im.x; }
-    if (im.m === 'layer') im.u ||= videos[0]?.im.f; else delete im.u;
-    if (im.m !== 'cover') delete im.fp;
-    after(+s.dataset.m);
-  });
-  $$('[data-x]').forEach(s => s.onchange = () => { p.images[+s.dataset.x].x = +s.value; after(+s.dataset.x); });
-  $$('[data-fp]').forEach(s => s.onchange = () => { const im = p.images[+s.dataset.fp]; if (s.value) im.fp = s.value; else delete im.fp; after(+s.dataset.fp); });
-  $$('[data-u]').forEach(s => s.onchange = () => { p.images[+s.dataset.u].u = s.value; after(+s.dataset.u); });
-  $$('[data-n]').forEach(c => c.onchange = () => { p.images[+c.dataset.n].n = c.checked; after(+c.dataset.n); });
-  $$('[data-l]').forEach(b => b.onclick = () => { const k = +b.dataset.l; [p.images[k - 1], p.images[k]] = [p.images[k], p.images[k - 1]]; after(k - 1); });
-  $$('[data-r]').forEach(b => b.onclick = () => { const k = +b.dataset.r; [p.images[k + 1], p.images[k]] = [p.images[k], p.images[k + 1]]; after(k + 1); });
-  $$('[data-del]').forEach(b => b.onclick = () => { if (confirm('Delete this from the project?')) { p.images.splice(+b.dataset.del, 1); selected = null; changed(); } });
-  $('.mix').onclick = () => { suggest(p); changed(); toast('Layouts suggested — change any you don’t like'); };
-  const drop = $('.drop');
-  drop.onclick = () => { $('.filepick').dataset.pi = pi; $('.filepick').click(); };
-  drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
-  drop.ondragleave = () => drop.classList.remove('over');
-  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); addFiles(pi, [...e.dataTransfer.files]); };
-}
-
-/* about */
-function renderAbout() {
-  view.innerHTML = `
-    <div class="pagehead"><h1>About</h1></div>
-    <div class="card" style="display:flex;flex-direction:column;gap:16px">
-      <label class="f"><span>Short bio</span><textarea class="input bio" rows="3">${esc(D.bio)}</textarea><em class="help">Shown on the Info page.</em></label>
-      <label class="f"><span>Instagram</span><input class="input ig" value="${esc(D.instagram)}" placeholder="username, without @"></label>
-    </div>`;
-  $('.bio').oninput = e => { D.bio = e.target.value; changed(false); };
-  $('.ig').oninput = e => { D.instagram = e.target.value.replace(/^@/, '').trim(); changed(false); };
-  setPreview({ hash: '#/info' });
-}
-
-/* credits page layout */
-function renderSettings() {
-  const cur = D.creditsLayout || 'strip';
-  view.innerHTML = `
-    <div class="pagehead"><h1>Credits page</h1></div>
-    <div class="card">
-      <div class="chead"><h2>Layout</h2><span class="help">How every project’s credits page looks.</span></div>
-      <div class="opts">${Object.entries(CREDITS).map(([k, [t, d]]) => `<button class="opt ${k === cur ? 'on' : ''}" data-cl="${k}"><div class="big ${k}">${'<i></i>'.repeat(k === 'strip' ? 3 : k === 'grid' ? 4 : 1)}<u></u></div><b>${t}</b><span>${d}</span></button>`).join('')}</div>
-    </div>`;
-  $$('[data-cl]').forEach(b => b.onclick = () => { D.creditsLayout = b.dataset.cl; changed(); setPreview({ credits: D.projects[0]?.slug }); });
-}
-
-/* ---------- suggest layouts: a mix that doesn't repeat ---------- */
-function suggest(p) {
-  let prev = null, sinceCover = 9;
-  for (const im of p.images) {
-    if (modeOf(im) === 'layer') { prev = 'layer'; continue; }
-    const r = im.w / im.h;
-    const pref = im.v ? ['cover', 'full'] : r > 1.15 ? ['cover', 'full', 'small'] : r < .87 ? ['full', 'small', 'cover'] : ['full', 'cover', 'small'];
-    const m = pref.find(s => s !== prev && !(s === 'cover' && sinceCover < 2)) || pref[0];
-    im.m = m; sinceCover = m === 'cover' ? 0 : sinceCover + 1; prev = m;
-    if (m === 'small') { im.s = .9; im.x = im.x === 42 ? 58 : 42; } else { delete im.s; delete im.x; }
-    if (m !== 'cover') delete im.fp;
-    if (!nameAllowed(m)) im.n = false;
+function go() {
+  const t = target(), cl = D.creditsLayout || 'strip';
+  if (loadedVer === ver && frame.contentWindow?.location) {
+    try {
+      const w = frame.contentWindow;
+      w.location.hash = t.hash;
+      if (t.then) setTimeout(() => { w.location.hash = t.then; }, 60);
+      return;
+    } catch {}
   }
+  const v = ver;
+  frame.onload = () => { loadedVer = v; if (t.then) setTimeout(() => { try { frame.contentWindow.location.hash = t.then; } catch {} }, 120); };
+  frame.src = `../?draft&credits=${cl}&v=${v}${t.hash}`;
+}
+let rT = null;
+function refresh() { ver++; clearTimeout(rT); rT = setTimeout(go, 280); }
+function fit() {
+  const c = $('.canvas'), W = c.clientWidth - 48, H = c.clientHeight - 48;
+  const [fw, fh] = device === 'desk' ? [1440, 900] : [390, 844];
+  const s = Math.min(W / fw, H / fh);
+  frame.style.width = fw + 'px'; frame.style.height = fh + 'px';
+  $('.scaler').style.transform = `scale(${s})`;
+  const f = $('.frame'); f.style.width = fw * s + 'px'; f.style.height = fh * s + 'px'; f.classList.toggle('phone', device === 'phone');
+}
+$$('.device button').forEach(b => b.onclick = () => { device = b.dataset.dev; $$('.device button').forEach(x => x.classList.toggle('on', x === b)); fit(); });
+addEventListener('resize', fit);
+
+/* ---------- render ---------- */
+function render() { renderProjects(); renderStrip(); renderPanel(); }
+
+function renderProjects() {
+  $('.plist').innerHTML = D.projects.map((p, i) => {
+    const c = p.images.find(x => !x.v) || p.images[0];
+    return `<div class="prow ${!V.page && i === V.pi ? 'on' : ''}" draggable="true" data-pi="${i}">
+      ${c ? `<img src="${thumb(p, c)}" alt="">` : '<img alt="">'}<div class="t"><b>${esc(p.title) || 'Untitled'}</b><span class="c">${countOf(p)}</span></div></div>`;
+  }).join('');
+  $$('.pg').forEach(b => b.classList.toggle('on', V.page === b.dataset.page));
+  let from = null;
+  $$('.prow').forEach(r => {
+    const i = +r.dataset.pi;
+    r.onclick = () => { V = { pi: i, k: 0, page: null }; multi.clear(); tab = 'slide'; render(); go(); };
+    r.ondragstart = () => { from = i; r.classList.add('drag'); };
+    r.ondragend = () => { r.classList.remove('drag'); $$('.prow.over').forEach(x => x.classList.remove('over')); };
+    r.ondragover = e => { if (from === null) return; e.preventDefault(); r.classList.add('over'); };
+    r.ondragleave = () => r.classList.remove('over');
+    r.ondrop = e => {
+      e.preventDefault(); if (from === null || from === i) return;
+      const cur = D.projects[V.pi];
+      edit(() => { const [p] = D.projects.splice(from, 1); D.projects.splice(i, 0, p); V.pi = D.projects.indexOf(cur); });
+      from = null;
+    };
+  });
 }
 
-/* ---------- adding photos and videos ---------- */
-$('.filepick').onchange = e => { const files = [...e.target.files]; e.target.value = ''; addFiles(+e.target.dataset.pi, files); };
-async function addFiles(pi, files) {
-  const p = D.projects[pi]; if (!p || !files.length) return;
-  uploading = files.length; render();
+function renderStrip() {
+  const strip = $('.strip');
+  if (V.page) { strip.hidden = true; return; }
+  strip.hidden = false;
+  const p = P();
+  $('.sl').textContent = p ? `${p.title || 'Untitled'} — ${p.images.length} slide${p.images.length === 1 ? '' : 's'}` : '';
+  $('.dpn').textContent = p?.title || '';
+  $('.slides').innerHTML = (p?.images || []).map((im, k) => `
+    <div class="sld ${k === V.k || multi.has(k) ? 'on' : ''}" draggable="true" data-k="${k}">
+      <div class="im"><img src="${thumb(p, im)}" alt="" draggable="false">${im.v ? '<span class="v">▶ Video</span>' : ''}</div>
+      <div class="cap">${k + 1} · ${LAYOUTS[modeOf(im)][0]}</div>
+    </div>`).join('') +
+    (uploading ? `<div class="upl">Adding ${uploading}…</div>` : '') +
+    `<button class="addsl" title="Add photos or videos">+</button>`;
+  let from = null;
+  $$('.sld').forEach(el => {
+    const k = +el.dataset.k;
+    el.onclick = e => {
+      if (e.shiftKey) { const a = Math.min(V.k, k), b = Math.max(V.k, k); for (let i = a; i <= b; i++) multi.add(i); }
+      else if (e.metaKey || e.ctrlKey) { multi.has(k) ? multi.delete(k) : multi.add(k); multi.add(V.k); }
+      else multi.clear();
+      V.k = k; tab = 'slide'; renderStrip(); renderPanel(); go();
+    };
+    el.ondragstart = e => { from = k; el.classList.add('drag'); e.dataTransfer.setData('text/x-slide', String(k)); };
+    el.ondragend = () => { el.classList.remove('drag'); $$('.sld.over').forEach(x => x.classList.remove('over')); };
+    el.ondragover = e => { if (from === null) return; e.preventDefault(); el.classList.add('over'); };
+    el.ondragleave = () => el.classList.remove('over');
+    el.ondrop = e => {
+      if (from === null) return; e.preventDefault(); e.stopPropagation();
+      move(from, k); from = null;
+    };
+  });
+  const move = (a, k) => {            // drop on slide k = put it before k
+    const to = a < k ? k - 1 : k; if (to === a) return;
+    edit(() => { const [im] = p.images.splice(a, 1); p.images.splice(to, 0, im); V.k = to; multi.clear(); });
+  };
+  const add = $('.addsl');
+  add.ondragover = e => { if (from !== null) e.preventDefault(); };
+  add.ondrop = e => { if (from === null) return; e.preventDefault(); e.stopPropagation(); move(from, p.images.length); from = null; };
+  $('.addsl').onclick = () => $('.filepick').click();
+}
+
+function renderPanel() {
+  const el = $('.panel');
+  if (V.page === 'info') return panelInfo(el);
+  if (V.page === 'credits') return panelCreditsPage(el);
+  const p = P();
+  if (!p) { el.innerHTML = '<p class="empty">Add a project to get started.</p>'; return; }
+  const tabs = `<div class="tabs"><button data-tab="slide" class="${tab === 'slide' ? 'on' : ''}">Slide</button><button data-tab="project" class="${tab === 'project' || tab === 'credits' ? 'on' : ''}">Project &amp; credits</button></div>`;
+  el.innerHTML = tabs + (tab === 'slide' ? slideHTML(p) : projectHTML(p));
+  $$('[data-tab]', el).forEach(b => b.onclick = () => { tab = b.dataset.tab; renderPanel(); go(); });
+  tab === 'slide' ? bindSlide(el, p) : bindProject(el, p);
+}
+
+function slideHTML(p) {
+  if (!p.images.length) return `<p class="empty">This project has no slides yet.<br><br>Click <b>+</b> in the strip below, or drop photos and videos onto the preview.</p>`;
+  const sel = [...new Set([V.k, ...multi])].sort((a, b) => a - b), im = p.images[V.k], many = sel.length > 1;
+  const m = modeOf(im), anyVideo = sel.some(k => p.images[k].v);
+  const vids = allItems().filter(x => x.im.v);
+  const run = (() => { let r = 1, best = 0, s = ''; p.images.forEach((x, i) => { r = i && modeOf(x) === modeOf(p.images[i - 1]) ? r + 1 : 1; if (r > best) { best = r; s = modeOf(x); } }); return best >= 3 ? LAYOUTS[s][0] : ''; })();
+  return `
+    <div class="ph"><b>${many ? `${sel.length} slides selected` : `Slide ${V.k + 1}`}</b><span>${many ? 'changes apply to all of them' : `of ${p.images.length}${im.v ? ' · video' : ''}`}</span></div>
+    ${run && !many ? `<div class="note">${run} is used 3 times in a row in this project. Mixing layouts keeps it from feeling repetitive.</div>` : ''}
+    <div class="sec"><span class="lab">Layout</span>
+      <div class="lays">${Object.entries(LAYOUTS).map(([k, [t, d]]) => {
+        const off = k === 'layer' && anyVideo;
+        return `<button class="lay ${!many && k === m ? 'on' : ''}" data-m="${k}" ${off ? 'disabled style="opacity:.35;cursor:default"' : ''}>${art(k)}<b>${t}</b><span class="d">${d}</span></button>`;
+      }).join('')}</div>
+    </div>
+    ${!many && m === 'small' ? `<div class="sec"><span class="lab">Position</span><div class="seg">${[['Left', 42], ['Centre', 50], ['Right', 58]].map(([t, x]) => `<button data-x="${x}" class="${(im.x ?? 50) === x ? 'on' : ''}">${t}</button>`).join('')}</div></div>` : ''}
+    ${!many && m === 'cover' && !im.v ? `<div class="sec"><span class="lab">Keep in view</span><div class="seg">${[['Top', '50% 15%'], ['Middle', ''], ['Bottom', '50% 85%']].map(([t, v]) => `<button data-fp="${v}" class="${(im.fp || '') === v ? 'on' : ''}">${t}</button>`).join('')}</div><p class="help">Which part stays visible when the screen crops it.</p></div>` : ''}
+    ${!many && m === 'layer' ? `<div class="sec"><span class="lab">Video behind it</span>${vids.length ? `<div class="unders">${vids.map(x => `<button data-u="${x.im.f}" class="${(im.u || vids[0].im.f) === x.im.f ? 'on' : ''}" title="${esc(x.p.title)}"><img src="${thumb(x.p, x.im)}" alt=""></button>`).join('')}</div>` : '<p class="help">Add a video to any project first.</p>'}</div>` : ''}
+    ${!many ? `<div class="sec"><button class="sw ${im.n && nameOk(m) ? 'on' : ''}" ${nameOk(m) ? '' : 'disabled'}><i></i>Her name behind this slide</button><p class="help">${nameOk(m) ? 'Shows “Lorhaine Mendes” large behind the picture. Best on a few slides only.' : 'Only works with Large or Small — the picture would cover it.'}</p></div>` : ''}
+    <div class="sec"><button class="danger del">${many ? `Delete ${sel.length} slides` : 'Delete slide'}</button></div>`;
+}
+function bindSlide(el, p) {
+  if (!p.images.length) return;
+  const sel = [...new Set([V.k, ...multi])], im = p.images[V.k];
+  $$('[data-m]', el).forEach(b => b.onclick = () => { if (b.disabled) return; edit(() => sel.forEach(k => setLayout(p.images[k], b.dataset.m))); });
+  $$('[data-x]', el).forEach(b => b.onclick = () => edit(() => { im.x = +b.dataset.x; }));
+  $$('[data-fp]', el).forEach(b => b.onclick = () => edit(() => { if (b.dataset.fp) im.fp = b.dataset.fp; else delete im.fp; }));
+  $$('[data-u]', el).forEach(b => b.onclick = () => edit(() => { im.u = b.dataset.u; }));
+  const sw = $('.sw', el); if (sw) sw.onclick = () => edit(() => { im.n = !im.n; });
+  $('.del', el).onclick = () => {
+    edit(() => { sel.sort((a, b) => b - a).forEach(k => p.images.splice(k, 1)); V.k = Math.max(0, Math.min(Math.min(...sel), p.images.length - 1)); multi.clear(); });
+    toast(sel.length > 1 ? 'Slides deleted — Undo to bring them back' : 'Slide deleted — Undo to bring it back');
+  };
+}
+function setLayout(im, m) {
+  if (m === 'layer' && im.v) return;
+  im.m = m;
+  if (m === 'small') { im.s = .9; im.x ??= 58; } else { delete im.s; delete im.x; }
+  if (m === 'layer') im.u ||= allItems().find(x => x.im.v)?.im.f; else delete im.u;
+  if (m !== 'cover') delete im.fp;
+}
+
+function projectHTML(p) {
+  return `
+    <div class="sec">
+      <div class="field"><span class="lab">Project name</span><input class="in" data-k="title" value="${esc(p.title)}"></div>
+      <div class="field" style="display:grid;grid-template-columns:1fr 90px;gap:8px">
+        <div><span class="lab">Client</span><input class="in" data-k="client" value="${esc(p.client)}" placeholder="Optional"></div>
+        <div><span class="lab">Year</span><input class="in" data-k="year" value="${esc(p.year)}" placeholder="Optional"></div>
+      </div>
+    </div>
+    <div class="sec"><span class="lab">Credits</span>
+      ${(p.credits || []).map((c, i) => `<div class="cred"><input class="in" data-ci="${i}" data-f="role" value="${esc(c.role)}" placeholder="Role"><input class="in" data-ci="${i}" data-f="name" value="${esc(c.name)}" placeholder="Name"><button class="x" data-rm="${i}" title="Remove">×</button></div>`).join('')}
+      <button class="addc">+ Add credit</button>
+      <p class="help">The preview shows this project’s credits page while you edit.</p>
+    </div>
+    <div class="sec"><button class="danger delp">Delete project</button></div>`;
+}
+function bindProject(el, p) {
+  // typing: one undo step per field visit
+  const typed = (inp, set) => { inp.onfocus = () => snapshot(); inp.oninput = () => { set(inp.value); saved(); renderProjects(); renderStrip(); }; };
+  $$('[data-k]', el).forEach(i => typed(i, v => { p[i.dataset.k] = v; }));
+  $$('[data-ci]', el).forEach(i => typed(i, v => { p.credits[+i.dataset.ci][i.dataset.f] = v; }));
+  $$('[data-rm]', el).forEach(b => b.onclick = () => edit(() => p.credits.splice(+b.dataset.rm, 1)));
+  $('.addc', el).onclick = () => { edit(() => (p.credits ||= []).push({ role: '', name: '' })); $$('.cred .in[data-f="role"]').at(-1)?.focus(); };
+  $('.delp', el).onclick = () => {
+    if (!confirm(`Delete “${p.title}” and all its slides?`)) return;
+    edit(() => { D.projects.splice(V.pi, 1); V = { pi: Math.max(0, V.pi - 1), k: 0, page: null }; });
+    toast('Project deleted — Undo to bring it back');
+  };
+}
+
+function panelInfo(el) {
+  el.innerHTML = `
+    <div class="ph"><b>Info page</b></div>
+    <div class="field"><span class="lab">Bio</span><textarea class="in bio" rows="4">${esc(D.bio)}</textarea></div>
+    <div class="field"><span class="lab">Instagram</span><input class="in ig" value="${esc(D.instagram)}" placeholder="username, without @"></div>`;
+  const b = $('.bio', el), i = $('.ig', el);
+  b.onfocus = i.onfocus = () => snapshot();
+  b.oninput = () => { D.bio = b.value; saved(); };
+  i.oninput = () => { D.instagram = i.value.replace(/^@/, '').trim(); saved(); };
+}
+function panelCreditsPage(el) {
+  const cur = D.creditsLayout || 'strip';
+  el.innerHTML = `
+    <div class="ph"><b>Credits page</b></div>
+    <div class="sec"><span class="lab">Layout for every project</span>
+      <div class="lays" style="grid-template-columns:1fr">${Object.entries(CREDITS).map(([k, [t, d]]) => `<button class="lay ${k === cur ? 'on' : ''}" data-cl="${k}">${art(k)}<b>${t}</b><span class="d">${d}</span></button>`).join('')}</div>
+    </div>`;
+  $$('[data-cl]', el).forEach(b => b.onclick = () => edit(() => { D.creditsLayout = b.dataset.cl; }));
+}
+$$('.pg').forEach(b => b.onclick = () => { V.page = b.dataset.page; multi.clear(); render(); go(); });
+
+/* ---------- new project ---------- */
+$('.addp').onclick = () => {
+  let slug = 'project', n = 1; while (D.projects.some(p => p.slug === slug)) slug = 'project-' + ++n;
+  edit(() => { D.projects.push({ slug, title: 'New project', client: '', year: '', credits: [{ role: 'Styling', name: D.name || '' }, { role: 'Photography', name: '' }], images: [] }); V = { pi: D.projects.length - 1, k: 0, page: null }; tab = 'project'; });
+  setTimeout(() => $('.panel [data-k="title"]')?.select(), 30);
+};
+
+/* ---------- adding photos and videos: + button, or drop anywhere ---------- */
+$('.filepick').onchange = e => { const f = [...e.target.files]; e.target.value = ''; addFiles(f); };
+const stageEl = $('.stage');
+let dragDepth = 0;
+const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+addEventListener('dragenter', e => { if (!hasFiles(e) || V.page || !P()) return; dragDepth++; stageEl.classList.add('dropping'); });
+addEventListener('dragleave', e => { if (!hasFiles(e)) return; if (--dragDepth <= 0) { dragDepth = 0; stageEl.classList.remove('dropping'); } });
+addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+addEventListener('drop', e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth = 0; stageEl.classList.remove('dropping'); if (!V.page && P()) addFiles([...e.dataTransfer.files]); });
+
+async function addFiles(files) {
+  const p = P(); if (!p || !files.length) return;
+  snapshot();
+  uploading = files.length; renderStrip();
   for (const file of files) {
     try {
       const f = nextName(p.slug);
       if (file.type.startsWith('video/')) {
-        if (file.size > 90 * 1024 * 1024) throw new Error(`${file.name} is over 90 MB — please export it smaller.`);
+        if (file.size > 90 * 1024 * 1024) throw new Error(`${file.name} is over 90 MB — export it smaller first.`);
         const { w, h, poster } = await videoInfo(file);
         pending[f] = { mp4: URL.createObjectURL(file), poster: URL.createObjectURL(poster), files: { [`media/video/${f}.mp4`]: file, [`media/video/${f}.jpg`]: poster } };
         p.images.push({ f, w, h, m: 'cover', v: true, n: false });
       } else if (file.type.startsWith('image/')) {
-        const bmp = await createImageBitmap(file).catch(() => { throw new Error(`${file.name} can’t be opened here — please export it as JPG.`); });
+        const bmp = await createImageBitmap(file).catch(() => { throw new Error(`${file.name} can’t be opened here — export it as JPG.`); });
         const web = await resize(bmp, 2400, .86), md = await resize(bmp, 1400, .84);
         pending[f] = { web: URL.createObjectURL(web.blob), md: URL.createObjectURL(md.blob), files: { [`media/web/${p.slug}/${f}.webp`]: web.blob, [`media/md/${p.slug}/${f}.webp`]: md.blob } };
         p.images.push({ f, w: web.w, h: web.h, m: 'full', n: false });
       } else throw new Error(`${file.name} isn’t a photo or video.`);
-    } catch (err) { toast(err.message || 'That file could not be added'); }
-    uploading--;
+    } catch (err) { toast(err.message || 'That file couldn’t be added'); }
+    uploading--; renderStrip();
   }
-  selected = p.images.length - 1; changed(); setPreview({ hash: `#/${p.slug}/${p.images.length}` });
+  V.k = p.images.length - 1; multi.clear(); tab = 'slide';
+  saved(); render();
 }
-function nextName(slug) {
-  const used = new Set(allItems().map(x => x.im.f));
-  let n = 1, f; do f = `${slug}-${String(n++).padStart(2, '0')}`; while (used.has(f) || pending[f]); return f;
-}
+function nextName(slug) { const used = new Set(allItems().map(x => x.im.f)); let n = 1, f; do f = `${slug}-${String(n++).padStart(2, '0')}`; while (used.has(f) || pending[f]); return f; }
 async function resize(bmp, max, q) {
-  const s = Math.min(1, max / Math.max(bmp.width, bmp.height));
-  const w = Math.round(bmp.width * s), h = Math.round(bmp.height * s);
+  const s = Math.min(1, max / Math.max(bmp.width, bmp.height)), w = Math.round(bmp.width * s), h = Math.round(bmp.height * s);
   const c = new OffscreenCanvas(w, h); c.getContext('2d').drawImage(bmp, 0, 0, w, h);
   return { blob: await c.convertToBlob({ type: 'image/webp', quality: q }), w, h };
 }
@@ -293,14 +325,22 @@ function videoInfo(file) {
   return new Promise((ok, no) => {
     const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = URL.createObjectURL(file);
     v.onloadeddata = () => { v.currentTime = Math.min(.2, (v.duration || 1) / 4); };
-    v.onseeked = () => {
-      const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
-      c.getContext('2d').drawImage(v, 0, 0);
-      c.toBlob(b => ok({ w: v.videoWidth, h: v.videoHeight, poster: b }), 'image/jpeg', .85);
-    };
-    v.onerror = () => no(new Error(`${file.name} can’t play in the browser — please export it as MP4.`));
+    v.onseeked = () => { const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); c.toBlob(b => ok({ w: v.videoWidth, h: v.videoHeight, poster: b }), 'image/jpeg', .85); };
+    v.onerror = () => no(new Error(`${file.name} can’t play in the browser — export it as MP4.`));
   });
 }
+
+/* ---------- keyboard ---------- */
+addEventListener('keydown', e => {
+  if (e.target.closest('input,textarea')) return;
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); return undo(); }
+  const p = P(); if (V.page || !p?.images.length) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    e.preventDefault(); V.k = Math.max(0, Math.min(p.images.length - 1, V.k + (e.key === 'ArrowRight' ? 1 : -1))); multi.clear(); tab = 'slide'; renderStrip(); renderPanel(); go();
+    $('.sld.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); $('.panel .del')?.click(); }
+});
 
 /* ---------- publish: one commit with the data file and any new media ---------- */
 const gh = async (path, opt = {}) => {
@@ -311,7 +351,7 @@ const gh = async (path, opt = {}) => {
 const b64 = blob => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
 async function publish() {
   if (!localStorage.getItem('lm-gh-token') && !(await connect())) return;
-  const btn = $('.publish'); btn.disabled = true; btn.textContent = 'Publishing…';
+  const btn = $('.top .pub'); btn.disabled = true; btn.textContent = 'Publishing…';
   try {
     const out = clean(D);
     const files = { 'data/projects.json': new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }) };
@@ -321,35 +361,32 @@ async function publish() {
       const { sha } = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: await b64(blob), encoding: 'base64' }) });
       tree.push({ path, mode: '100644', type: 'blob', sha });
     }
-    const ref = await gh(`/git/ref/heads/${REPO.branch}`);
-    const head = await gh(`/git/commits/${ref.object.sha}`);
+    const ref = await gh(`/git/ref/heads/${REPO.branch}`), head = await gh(`/git/commits/${ref.object.sha}`);
     const t = await gh('/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: head.tree.sha, tree }) });
-    const c = await gh('/git/commits', { method: 'POST', body: JSON.stringify({ message: 'Website editor update', tree: t.sha, parents: [ref.object.sha] }) });
+    const c = await gh('/git/commits', { method: 'POST', body: JSON.stringify({ message: 'Editor update', tree: t.sha, parents: [ref.object.sha] }) });
     await gh(`/git/refs/heads/${REPO.branch}`, { method: 'PATCH', body: JSON.stringify({ sha: c.sha }) });
     published = structuredClone(out);
-    for (const b of Object.values(pending)) delete b.files;      // keep preview links until the site catches up
+    for (const b of Object.values(pending)) delete b.files;
     localStorage.removeItem('lm-studio');
-    toast('Published — the website updates in about a minute');
+    toast('Published — the site updates within a minute');
   } catch (err) {
-    if ([401, 403, 404].includes(err.status)) { localStorage.removeItem('lm-gh-token'); toast('The publishing key didn’t work — please connect again'); }
+    if ([401, 403, 404].includes(err.status)) { localStorage.removeItem('lm-gh-token'); toast('The publishing key didn’t work — connect again'); }
     else toast('Couldn’t publish — check your internet and try again');
   }
-  btn.textContent = 'Publish changes'; status();
+  btn.textContent = 'Publish'; status();
 }
 function connect() {
   const dlg = $('.connect'); $('.token', dlg).value = ''; dlg.showModal();
-  return new Promise(r => dlg.onclose = () => {
-    const v = $('.token', dlg).value.trim();
-    if (dlg.returnValue === 'ok' && v) { localStorage.setItem('lm-gh-token', v); r(true); } else r(false);
-  });
+  return new Promise(r => dlg.onclose = () => { const v = $('.token', dlg).value.trim(); if (dlg.returnValue === 'ok' && v) { localStorage.setItem('lm-gh-token', v); r(true); } else r(false); });
 }
-$('.publish').onclick = publish;
+$('.top .pub').onclick = publish;
 $('.discard').onclick = () => {
-  if (!confirm('Throw away all changes that aren’t published?')) return;
-  D = structuredClone(published); Object.keys(pending).forEach(k => delete pending[k]); localStorage.removeItem('lm-studio'); changed(); route();
+  if (!confirm('Throw away everything that isn’t published yet?')) return;
+  snapshot(); D = structuredClone(published); Object.keys(pending).forEach(k => delete pending[k]);
+  localStorage.removeItem('lm-studio'); V = { pi: 0, k: 0, page: null }; multi.clear(); saved(); render();
 };
 addEventListener('beforeunload', e => { if (Object.values(pending).some(b => b.files)) { e.preventDefault(); e.returnValue = ''; } });
-function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3500); }
+function toast(msg) { $$('.toast').forEach(t => t.remove()); const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3200); }
 
 /* ---------- go ---------- */
-writeDraft(); status(); sizePreview(); route();
+writeDraft(); status(); render(); fit(); go();
