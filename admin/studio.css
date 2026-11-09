@@ -144,6 +144,7 @@ dialog .token{width:100%;padding:8px 10px;border:1px solid var(--line);border-ra
   .app{display:flex;flex-direction:column;height:auto}
   .side{border:0;border-bottom:1px solid var(--line);flex-direction:row;overflow-x:auto;padding:8px;gap:4px;align-items:center}
   .sh{display:none}
+  .plist{display:flex;gap:4px}
   .prow{flex:none}
   .prow .c{display:none}
   .addp,.pg{flex:none;white-space:nowrap}
