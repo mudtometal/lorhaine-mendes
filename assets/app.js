@@ -34,6 +34,10 @@ FLOW.forEach(it => { new Image().src = it.v ? vposter(it.f) : src(it.p.slug, it.
    layer  Layered      a video (or photo) fills the screen, the picture sits on top        */
 const MODES = ['cover', 'full', 'small', 'layer'];
 const modeOf = it => it.m === 'frame' ? 'full' : MODES.includes(it.m) ? it.m : 'full';
+// Full screen only when the picture's shape is close to the screen's; otherwise it shows Large,
+// so a portrait never gets its head and feet cut off on a wide screen (and the other way round)
+const fitsScreen = (it, vw = innerWidth, vh = innerHeight) => { const r = it.w / it.h, sr = vw / vh; return Math.max(r / sr, sr / r) <= 1.2; };
+const shownMode = it => { const m = modeOf(it); return m === 'cover' && !fitsScreen(it) ? 'full' : m; };
 const UI = 44;
 function boxFor(it, mode, vw, vh, m) {
   if (mode === 'cover') return { w: vw, h: vh, left: 0, top: 0 };
@@ -70,7 +74,7 @@ function vidReady(el, url, poster) {
 }
 function place(it, size) {
   const vw = innerWidth, vh = innerHeight, m = mobile();
-  let mode = modeOf(it);
+  let mode = shownMode(it);
   let b = boxFor(it, mode, vw, vh, m);
   // intro: every flash lands in one fixed window (the first slide's), so nothing resizes or bounces
   const fixed = intro.running && intro.box;
@@ -98,7 +102,7 @@ function place(it, size) {
     if (nb) { oldBg.after(nb); bg = nb; }
     if (under?.v) uv.play?.().catch(() => {}); else uv.pause?.();
     stage.classList.toggle('isvid', !!it.v);
-    stage.classList.toggle('layer', mode === 'layer');
+    stage.classList.toggle('is-layer', mode === 'layer');
     stage.classList.toggle('ulayer', !!under?.v);
     stage.classList.toggle('ilayer', !!underImg);
     document.body.classList.toggle('dark', mode === 'cover' || mode === 'layer');

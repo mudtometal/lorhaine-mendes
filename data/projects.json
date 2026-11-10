@@ -32,8 +32,10 @@
      "f": "safe-02",
      "w": 1613,
      "h": 2400,
-     "m": "cover",
-     "n": false
+     "m": "small",
+     "n": false,
+     "s": 0.9,
+     "x": 58
     },
     {
      "f": "safe-03",
@@ -56,7 +58,7 @@
      "m": "small",
      "n": true,
      "s": 0.9,
-     "x": 58
+     "x": 42
     }
    ]
   },
@@ -80,24 +82,24 @@
      "f": "marseille-01",
      "w": 2400,
      "h": 1946,
-     "m": "cover",
+     "m": "full",
      "n": false
     },
     {
      "f": "marseille-02",
      "w": 1947,
      "h": 2400,
-     "m": "full",
-     "n": false
+     "m": "small",
+     "n": false,
+     "s": 0.9,
+     "x": 58
     },
     {
      "f": "marseille-03",
      "w": 2400,
      "h": 1946,
-     "m": "small",
-     "n": false,
-     "s": 0.9,
-     "x": 42
+     "m": "full",
+     "n": false
     }
    ]
   },
@@ -124,7 +126,7 @@
      "m": "small",
      "n": false,
      "s": 0.9,
-     "x": 58
+     "x": 42
     },
     {
      "f": "momostar-02",
@@ -147,7 +149,7 @@
      "m": "small",
      "n": true,
      "s": 0.9,
-     "x": 42
+     "x": 58
     }
    ]
   },
@@ -178,24 +180,26 @@
      "f": "red-02",
      "w": 1895,
      "h": 2400,
-     "m": "cover",
-     "n": false
+     "m": "small",
+     "n": false,
+     "s": 0.9,
+     "x": 42
     },
     {
      "f": "red-03",
      "w": 1800,
      "h": 2400,
-     "m": "small",
-     "n": true,
-     "s": 0.9,
-     "x": 58
+     "m": "full",
+     "n": true
     },
     {
      "f": "red-04",
      "w": 2400,
      "h": 1871,
-     "m": "cover",
-     "n": false
+     "m": "small",
+     "n": false,
+     "s": 0.9,
+     "x": 58
     },
     {
      "f": "red-05",
@@ -241,8 +245,10 @@
      "f": "make-believe-02",
      "w": 2400,
      "h": 1810,
-     "m": "full",
-     "n": false
+     "m": "small",
+     "n": false,
+     "s": 0.9,
+     "x": 42
     },
     {
      "f": "make-believe-03",
@@ -256,7 +262,7 @@
      "f": "make-believe-04",
      "w": 768,
      "h": 1024,
-     "m": "cover",
+     "m": "full",
      "n": false
     }
    ]
@@ -291,7 +297,7 @@
      "m": "small",
      "n": false,
      "s": 0.9,
-     "x": 42
+     "x": 58
     },
     {
      "f": "fourteen-03",
@@ -304,17 +310,17 @@
      "f": "fourteen-04",
      "w": 1946,
      "h": 2400,
-     "m": "cover",
-     "n": false
+     "m": "small",
+     "n": false,
+     "s": 0.9,
+     "x": 42
     },
     {
      "f": "fourteen-05",
      "w": 1946,
      "h": 2400,
-     "m": "small",
-     "n": false,
-     "s": 0.9,
-     "x": 58
+     "m": "full",
+     "n": false
     }
    ]
   }
