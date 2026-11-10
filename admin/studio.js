@@ -11,7 +11,7 @@ const LAYOUTS = {
   cover: ['Full screen', 'Fills the screen'],
   full: ['Large', 'Whole picture, big'],
   small: ['Small', 'Smaller, off-centre'],
-  layer: ['Layered', 'On top of a video'],
+  layer: ['Layered', 'On top of a photo or video'],
 };
 const CREDITS = { strip: ['Strip', 'Pictures in one row, scroll sideways'], stack: ['Stack', 'Credits left, pictures down the right'], grid: ['Grid', 'Credits on top, two columns'] };
 const modeOf = im => im.m === 'frame' ? 'full' : LAYOUTS[im.m] ? im.m : 'full';
@@ -100,7 +100,7 @@ function fit() {
   $('.scaler').style.transform = `scale(${s})`;
   const f = $('.frame'); f.style.width = fw * s + 'px'; f.style.height = fh * s + 'px'; f.classList.toggle('phone', device === 'phone');
 }
-$$('.device button').forEach(b => b.onclick = () => { device = b.dataset.dev; $$('.device button').forEach(x => x.classList.toggle('on', x === b)); fit(); });
+$$('.device button').forEach(b => b.onclick = () => { device = b.dataset.dev; $$('.device button').forEach(x => x.classList.toggle('on', x === b)); fit(); renderStrip(); renderPanel(); });
 addEventListener('resize', fit);
 
 /* ---------- render ---------- */
@@ -110,13 +110,21 @@ function renderProjects() {
   $('.plist').innerHTML = D.projects.map((p, i) => {
     const c = p.images.find(x => !x.v) || p.images[0];
     return `<div class="prow ${!V.page && i === V.pi ? 'on' : ''}" draggable="true" data-pi="${i}">
-      ${c ? `<img src="${thumb(p, c)}" alt="">` : '<img alt="">'}<div class="t"><b>${esc(p.title) || 'Untitled'}</b><span class="c">${countOf(p)}</span></div></div>`;
+      ${c ? `<img src="${thumb(p, c)}" alt="">` : '<img alt="">'}<div class="t"><b>${esc(p.title) || 'Untitled'}</b><span class="c">${countOf(p)}</span></div><button class="rm" data-rm="${i}" title="Delete project" aria-label="Delete ${esc(p.title)}">×</button></div>`;
   }).join('');
   $$('.pg').forEach(b => b.classList.toggle('on', V.page === b.dataset.page));
   let from = null;
   $$('.prow').forEach(r => {
     const i = +r.dataset.pi;
-    r.onclick = () => { V = { pi: i, k: 0, page: null }; multi.clear(); tab = 'slide'; render(); go(); };
+    r.onclick = e => {
+      if (e.target.closest('.rm')) {
+        const p = D.projects[i];
+        if (p.images.length && !confirm(`Delete “${p.title}” and its ${p.images.length} slides?`)) return;
+        edit(() => { D.projects.splice(i, 1); if (V.pi >= D.projects.length) V.pi = Math.max(0, D.projects.length - 1); V.k = 0; V.page = null; });
+        return toast('Project deleted', true);
+      }
+      V = { pi: i, k: 0, page: null }; multi.clear(); tab = 'slide'; render(); go();
+    };
     r.ondragstart = () => { from = i; r.classList.add('drag'); };
     r.ondragend = () => { r.classList.remove('drag'); $$('.prow.over').forEach(x => x.classList.remove('over')); };
     r.ondragover = e => { if (from === null) return; e.preventDefault(); r.classList.add('over'); };
@@ -140,7 +148,7 @@ function renderStrip() {
   $('.slides').innerHTML = (p?.images || []).map((im, k) => `
     <div class="sld ${k === V.k || multi.has(k) ? 'on' : ''}" draggable="true" data-k="${k}">
       <div class="im"><img src="${thumb(p, im)}" alt="" draggable="false">${im.v ? '<span class="v">Video</span>' : ''}</div>
-      <div class="cap">${k + 1} · ${LAYOUTS[modeOf(im)][0]}</div>
+      <div class="cap">${k + 1} · ${LAYOUTS[modeOf(view(im))][0]}${device === 'phone' && im.ph ? ' · phone' : ''}</div>
     </div>`).join('') +
     (uploading ? `<div class="upl">Adding ${uploading}…</div>` : '') +
     `<button class="addsl" title="Add photos or videos">+</button>`;
@@ -184,37 +192,116 @@ function renderPanel() {
   tab === 'slide' ? bindSlide(el, p) : bindProject(el, p);
 }
 
+/* ---------- per-device settings ----------
+   Desktop settings live on the slide; phone settings live in slide.ph when they differ. */
+const SCREENS = { desk: [1440, 900], phone: [390, 844] };
+const SIZE = { full: 1, small: .55, layer: .7 };
+const view = im => device === 'phone' && im.ph ? { ...im, ...im.ph } : im;      // what this device shows
+const tgt = im => device === 'phone' ? (im.ph ||= {}) : im;                  // where edits go
+function boxFor(L, mode) {                         // same maths as the site
+  const [vw, vh] = SCREENS[device], m = device === 'phone', UI = 44;
+  if (mode === 'cover') return { w: vw, h: vh, left: 0, top: 0 };
+  const r = L.w / L.h, pad = m ? (mode === 'full' ? 0 : 14) : 20, aw = vw - pad * 2, ah = vh - UI * 2;
+  let h = ah, w = h * r; if (w > aw) { w = aw; h = w / r; }
+  const s = Math.min(1, Math.max(.2, L.s ?? SIZE[mode] ?? 1)); w *= s; h *= s;
+  let left = vw * (L.x ?? 50) / 100 - w / 2, top = vh * (L.y ?? 50) / 100 - h / 2;
+  left = Math.min(Math.max(left, pad), vw - w - pad); top = Math.min(Math.max(top, UI), vh - h - UI);
+  return { w, h, left, top, vw, vh };
+}
+
 function slideHTML(p) {
   if (!p.images.length) return `<p class="empty">This project has no slides yet.<br><br>Click <b>+</b> in the strip below, or drop photos and videos onto the preview.</p>`;
   const sel = [...new Set([V.k, ...multi])].sort((a, b) => a - b), im = p.images[V.k], many = sel.length > 1;
-  const m = modeOf(im), anyVideo = sel.some(k => p.images[k].v);
-  const vids = allItems().filter(x => x.im.v);
-  const run = (() => { let r = 1, best = 0, s = ''; p.images.forEach((x, i) => { r = i && modeOf(x) === modeOf(p.images[i - 1]) ? r + 1 : 1; if (r > best) { best = r; s = modeOf(x); } }); return best >= 3 ? LAYOUTS[s][0] : ''; })();
+  const L = view(im), m = modeOf(L), anyVideo = sel.some(k => p.images[k].v);
+  const dev = device === 'phone' ? 'Phone' : 'Desktop';
+  const others = allItems().filter(x => x.im !== im && !(modeOf(x.im) === 'layer' && !x.im.v));
+  const run = (() => { let r = 1, best = 0, s = ''; p.images.forEach((x, i) => { r = i && modeOf(view(x)) === modeOf(view(p.images[i - 1])) ? r + 1 : 1; if (r > best) { best = r; s = modeOf(view(x)); } }); return best >= 3 ? LAYOUTS[s][0] : ''; })();
+  const under = L.u || allItems().find(x => x.im.v)?.im.f;
   return `
     <div class="ph"><b>${many ? `${sel.length} slides selected` : `Slide ${V.k + 1}`}</b><span>${many ? 'changes apply to all of them' : `of ${p.images.length}${im.v ? ' · video' : ''}`}</span></div>
-    ${run && !many ? `<div class="note">${run} is used 3 times in a row in this project. Mixing layouts keeps it from feeling repetitive.</div>` : ''}
+    <div class="devnote"><span class="pill">${dev} layout</span>${device === 'phone'
+      ? (im.ph && !many ? `<button class="link same">Use the desktop layout</button>` : '<span>Same as desktop until you change it</span>')
+      : '<span>Switch to Phone at the top to set the phone layout</span>'}</div>
+    ${run && !many ? `<div class="note">${run} is used 3 times in a row on ${dev.toLowerCase()}. Mixing layouts keeps it from feeling repetitive.</div>` : ''}
     <div class="sec"><span class="lab">Layout</span>
       <div class="lays">${Object.entries(LAYOUTS).map(([k, [t, d]]) => {
         const off = k === 'layer' && anyVideo;
-        return `<button class="lay ${!many && k === m ? 'on' : ''}" data-m="${k}" ${off ? 'disabled style="opacity:.35;cursor:default"' : ''}>${art(k)}<b>${t}</b><span class="d">${d}</span></button>`;
+        return `<button class="lay ${!many && k === m ? 'on' : ''}" data-m="${k}" ${off ? 'disabled' : ''}>${art(k)}<b>${t}</b><span class="d">${d}</span></button>`;
       }).join('')}</div>
     </div>
-    ${!many && m === 'cover' ? (() => { const r = im.w / im.h, fit = sr => Math.max(r / sr, sr / r) <= 1.2, d = fit(1440 / 900), ph = fit(390 / 844);
-      return d && ph ? '' : `<div class="note">${!d && !ph ? 'This picture’s shape doesn’t fill a screen without heavy cropping, so it shows as Large everywhere.' : !d ? 'On computers this picture would be cropped too much, so it shows as Large there. It fills the screen on phones.' : 'On phones this picture would be cropped too much, so it shows as Large there. It fills the screen on computers.'}</div>`; })() : ''}
-    ${!many && m === 'small' ? `<div class="sec"><span class="lab">Position</span><div class="seg">${[['Left', 42], ['Centre', 50], ['Right', 58]].map(([t, x]) => `<button data-x="${x}" class="${(im.x ?? 50) === x ? 'on' : ''}">${t}</button>`).join('')}</div></div>` : ''}
-    ${!many && m === 'cover' && !im.v ? `<div class="sec"><span class="lab">Keep in view</span><div class="seg">${[['Top', '50% 15%'], ['Middle', ''], ['Bottom', '50% 85%']].map(([t, v]) => `<button data-fp="${v}" class="${(im.fp || '') === v ? 'on' : ''}">${t}</button>`).join('')}</div><p class="help">Which part stays visible when the screen crops it.</p></div>` : ''}
-    ${!many && m === 'layer' ? `<div class="sec"><span class="lab">Video behind it</span>${vids.length ? `<div class="unders">${vids.map(x => `<button data-u="${x.im.f}" class="${(im.u || vids[0].im.f) === x.im.f ? 'on' : ''}" title="${esc(x.p.title)}"><img src="${thumb(x.p, x.im)}" alt=""></button>`).join('')}</div>` : '<p class="help">Add a video to any project first.</p>'}</div>` : ''}
-    ${!many ? `<div class="sec"><button class="sw ${im.n && nameOk(m) ? 'on' : ''}" ${nameOk(m) ? '' : 'disabled'}><i></i>Her name behind this slide</button><p class="help">${nameOk(m) ? 'Shows “Lorhaine Mendes” large behind the picture. Best on a few slides only.' : 'Available with Large or Small. Other layouts would cover it.'}</p></div>` : ''}
+    ${!many ? padHTML(p, im, L, m) : ''}
+    ${!many && m === 'layer' ? `<div class="sec"><span class="lab">Behind it</span>
+      <div class="unders">${others.map(x => `<button data-u="${x.im.f}" class="${under === x.im.f ? 'on' : ''}" title="${esc(x.p.title)}${x.im.v ? ' · video' : ''}"><img src="${thumb(x.p, x.im)}" alt="">${x.im.v ? '<span class="v">Video</span>' : ''}</button>`).join('')}</div>
+      <p class="help">A video or photo that fills the screen behind this picture.</p></div>` : ''}
+    ${!many ? `<div class="sec"><button class="sw ${L.n && nameOk(m) ? 'on' : ''}" ${nameOk(m) ? '' : 'disabled'}><i></i>Show “Lorhaine Mendes” behind the picture</button><p class="help">${nameOk(m) ? 'Her name in big letters behind the picture. Looks best on a few slides only.' : 'Only with Large or Small. The other layouts would cover it.'}</p></div>` : ''}
     <div class="sec"><button class="danger del">${many ? `Delete ${sel.length} slides` : 'Delete slide'}</button></div>`;
+}
+// the placement pad: a little screen you drag the picture around in, plus a size slider.
+// For Full screen it shows the whole picture with the part the screen keeps; drag that window.
+function padHTML(p, im, L, m) {
+  const [vw, vh] = SCREENS[device];
+  if (m === 'cover') {
+    return `<div class="sec"><span class="lab">What stays in view</span>
+      <div class="crop" style="aspect-ratio:${im.w}/${im.h}"><img src="${thumb(p, im)}" alt="" draggable="false"><div class="win"></div></div>
+      <p class="help">The screen crops the picture. Drag the frame to choose what shows.</p></div>`;
+  }
+  return `<div class="sec"><span class="lab">Size and position</span>
+    <div class="pad ${device}" style="aspect-ratio:${vw}/${vh}"><div class="pbox"><img src="${thumb(p, im)}" alt="" draggable="false"></div></div>
+    <div class="sizer"><span>Size</span><input type="range" min="20" max="100" step="1" value="${Math.round((L.s ?? SIZE[m] ?? 1) * 100)}"><b></b></div>
+    <p class="help">Drag the picture to place it. <button class="link centre">Centre it</button></p></div>`;
+}
+function bindPad(el, p, im) {
+  const L = () => view(im), m = modeOf(L());
+  const crop = $('.crop', el), pad = $('.pad', el);
+  if (crop) {
+    const [vw, vh] = SCREENS[device], r = im.w / im.h, sr = vw / vh;
+    const fw = r > sr ? sr / r : 1, fh = r > sr ? 1 : r / sr;          // share of the picture the screen keeps
+    const win = $('.win', crop);
+    let [px, py] = (L().fp || '50% 50%').split(' ').map(parseFloat);
+    const draw = () => Object.assign(win.style, { width: fw * 100 + '%', height: fh * 100 + '%', left: (1 - fw) * px + '%', top: (1 - fh) * py + '%' });
+    draw();
+    drag(win, crop, (dx, dy, W, H) => {
+      if (fw < 1) px = Math.min(100, Math.max(0, px + dx / ((1 - fw) * W) * 100));
+      if (fh < 1) py = Math.min(100, Math.max(0, py + dy / ((1 - fh) * H) * 100));
+      draw();
+    }, () => edit(() => { tgt(im).fp = `${Math.round(px)}% ${Math.round(py)}%`; }));
+  }
+  if (pad) {
+    const box = $('.pbox', pad), range = $('.sizer input', el), out = $('.sizer b', el);
+    let t = { ...L() };
+    const draw = () => {
+      const b = boxFor(t, m);
+      Object.assign(box.style, { left: b.left / b.vw * 100 + '%', top: b.top / b.vh * 100 + '%', width: b.w / b.vw * 100 + '%', height: b.h / b.vh * 100 + '%' });
+      out.textContent = range.value + '%';
+    };
+    draw();
+    drag(box, pad, (dx, dy, W, H) => {
+      const b = boxFor(t, m);
+      t.x = Math.min(100, Math.max(0, (b.left + b.w / 2) / b.vw * 100 + dx / W * 100));
+      t.y = Math.min(100, Math.max(0, (b.top + b.h / 2) / b.vh * 100 + dy / H * 100));
+      draw();
+    }, () => edit(() => { const g = tgt(im); g.x = Math.round(t.x); g.y = Math.round(t.y); }));
+    range.oninput = () => { t.s = range.value / 100; draw(); };
+    range.onchange = () => edit(() => { tgt(im).s = +(range.value / 100).toFixed(2); });
+    $('.centre', el).onclick = () => edit(() => { const g = tgt(im); delete g.x; delete g.y; });
+  }
+}
+function drag(handle, area, move, done) {
+  handle.onpointerdown = e => {
+    e.preventDefault(); handle.setPointerCapture(e.pointerId);
+    let lx = e.clientX, ly = e.clientY; const R = area.getBoundingClientRect();
+    handle.onpointermove = ev => { move(ev.clientX - lx, ev.clientY - ly, R.width, R.height); lx = ev.clientX; ly = ev.clientY; };
+    handle.onpointerup = () => { handle.onpointermove = handle.onpointerup = null; done(); };
+  };
 }
 function bindSlide(el, p) {
   if (!p.images.length) return;
   const sel = [...new Set([V.k, ...multi])], im = p.images[V.k];
   $$('[data-m]', el).forEach(b => b.onclick = () => { if (b.disabled) return; edit(() => sel.forEach(k => setLayout(p.images[k], b.dataset.m))); });
-  $$('[data-x]', el).forEach(b => b.onclick = () => edit(() => { im.x = +b.dataset.x; }));
-  $$('[data-fp]', el).forEach(b => b.onclick = () => edit(() => { if (b.dataset.fp) im.fp = b.dataset.fp; else delete im.fp; }));
-  $$('[data-u]', el).forEach(b => b.onclick = () => edit(() => { im.u = b.dataset.u; }));
-  const sw = $('.sw', el); if (sw) sw.onclick = () => edit(() => { im.n = !im.n; });
+  $$('[data-u]', el).forEach(b => b.onclick = () => edit(() => { tgt(im).u = b.dataset.u; }));
+  const sw = $('.sw', el); if (sw) sw.onclick = () => edit(() => { tgt(im).n = !view(im).n; });
+  const same = $('.same', el); if (same) same.onclick = () => edit(() => { delete im.ph; });
+  if (sel.length === 1) bindPad(el, p, im);
   $('.del', el).onclick = () => {
     edit(() => { sel.sort((a, b) => b - a).forEach(k => p.images.splice(k, 1)); V.k = Math.max(0, Math.min(Math.min(...sel), p.images.length - 1)); multi.clear(); });
     toast(sel.length > 1 ? 'Slides deleted' : 'Slide deleted', true);
@@ -222,10 +309,12 @@ function bindSlide(el, p) {
 }
 function setLayout(im, m) {
   if (m === 'layer' && im.v) return;
-  im.m = m;
-  if (m === 'small') { im.s = .9; im.x ??= 58; } else { delete im.s; delete im.x; }
-  if (m === 'layer') im.u ||= allItems().find(x => x.im.v)?.im.f; else delete im.u;
-  if (m !== 'cover') delete im.fp;
+  const g = tgt(im);
+  g.m = m;
+  delete g.s; delete g.x; delete g.y; delete g.fp;          // a new layout starts from its own defaults
+  if (m === 'small' && device === 'desk') g.x = 64;
+  if (m === 'layer') g.u ||= view(im).u || allItems().find(x => x.im.v)?.im.f; else delete g.u;
+  if (device === 'phone' && im.ph && Object.keys(im.ph).length === 1 && im.ph.m === im.m) delete im.ph;   // same as desktop again
 }
 
 function projectHTML(p) {

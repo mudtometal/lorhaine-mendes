@@ -9,7 +9,7 @@ const B = data._blobs || {};                 // files uploaded in the studio but
 const P = data.projects.filter(p => p.images.length);
 const FLOW = P.flatMap((p, pi) => p.images.map((im, k) => ({ p, pi, k, ...im })));
 const BYF = Object.fromEntries(FLOW.map(x => [x.f, x]));
-const hi = () => innerWidth * (devicePixelRatio || 1) > 1500;
+const hi = () => innerWidth * (devicePixelRatio || 1) > 1900;
 const src = (slug, f, size) => { size = size || (hi() ? 'web' : 'md'); return B[f]?.[size] || B[f]?.md || `media/${size}/${slug}/${f}.webp`; };
 const vsrc = f => B[f]?.mp4 || `media/video/${f}.mp4`, vposter = f => B[f]?.poster || `media/video/${f}.jpg`;
 const thumb = (p, im) => im.v ? vposter(im.f) : src(p.slug, im.f, 'md');
@@ -34,25 +34,20 @@ FLOW.forEach(it => { new Image().src = it.v ? vposter(it.f) : src(it.p.slug, it.
    layer  Layered      a video (or photo) fills the screen, the picture sits on top        */
 const MODES = ['cover', 'full', 'small', 'layer'];
 const modeOf = it => it.m === 'frame' ? 'full' : MODES.includes(it.m) ? it.m : 'full';
-// Full screen only when the picture's shape is close to the screen's; otherwise it shows Large,
-// so a portrait never gets its head and feet cut off on a wide screen (and the other way round)
-const fitsScreen = (it, vw = innerWidth, vh = innerHeight) => { const r = it.w / it.h, sr = vw / vh; return Math.max(r / sr, sr / r) <= 1.2; };
-const shownMode = it => { const m = modeOf(it); return m === 'cover' && !fitsScreen(it) ? 'full' : m; };
+// each slide has its desktop settings; `ph` holds the phone version when it differs
+const lay = it => mobile() && it.ph ? { ...it, ...it.ph } : it;
+const SIZE = { full: 1, small: .55, layer: .7 };     // share of the biggest size that fits
 const UI = 44;
-function boxFor(it, mode, vw, vh, m) {
+function boxFor(L, mode, vw, vh, m) {
   if (mode === 'cover') return { w: vw, h: vh, left: 0, top: 0 };
-  const r = it.w / it.h;
-  let s = mode === 'small' ? (it.s || .9) : mode === 'layer' ? .74 : 1;
-  let cx = mode === 'small' ? (it.x ?? 50) / 100 : .5;
-  if (m && mode !== 'full') { s = Math.min(1, s * 1.2); cx = .5; }
-  const availH = vh - UI * 2;
-  let maxW, maxH;
-  if (mode === 'full') { maxW = vw - (m ? 0 : 40); maxH = availH; }
-  else { maxH = availH * s; maxW = (vw - 40) * (m ? .9 : .8); }
-  let h = maxH, w = h * r;
-  if (w > maxW) { w = maxW; h = w / r; }
-  let left = vw * cx - w / 2, top = vh / 2 - h / 2;
-  left = Math.min(Math.max(left, m ? 0 : 20), vw - w - (m ? 0 : 20));
+  const r = L.w / L.h, pad = m ? (mode === 'full' ? 0 : 14) : 20;
+  const availW = vw - pad * 2, availH = vh - UI * 2;
+  let h = availH, w = h * r;
+  if (w > availW) { w = availW; h = w / r; }
+  const s = Math.min(1, Math.max(.2, L.s ?? SIZE[mode] ?? 1));
+  w *= s; h *= s;
+  let left = vw * (L.x ?? 50) / 100 - w / 2, top = vh * (L.y ?? 50) / 100 - h / 2;
+  left = Math.min(Math.max(left, pad), vw - w - pad);
   top = Math.min(Math.max(top, UI), vh - h - UI);
   return { w, h, left, top };
 }
@@ -65,17 +60,15 @@ function ready(url) {
 }
 function fresh(cls, url, alt) { const n = new Image(); n.className = cls; n.alt = alt; n.src = url; return n; }
 function vidReady(el, url, poster) {
-  return new Promise(r => {
-    const want = new URL(url, location.href).href;
-    if (el.src !== want) { el.poster = poster; el.src = want; }
-    if (el.readyState >= 2) return r();
-    el.addEventListener('loadeddata', r, { once: true }); setTimeout(r, 1500);
-  });
+  // the poster is on screen straight away; the video takes over as soon as it can play
+  const want = new URL(url, location.href).href;
+  if (el.src !== want) { el.poster = poster; el.src = want; }
+  return ready(poster);
 }
 function place(it, size) {
-  const vw = innerWidth, vh = innerHeight, m = mobile();
-  let mode = shownMode(it);
-  let b = boxFor(it, mode, vw, vh, m);
+  const vw = innerWidth, vh = innerHeight, m = mobile(), L = lay(it);
+  let mode = modeOf(L);
+  let b = boxFor(L, mode, vw, vh, m);
   // intro: every flash lands in one fixed window (the first slide's), so nothing resizes or bounces
   const fixed = intro.running && intro.box;
   if (fixed) { b = intro.box; mode = 'full'; }
@@ -84,12 +77,12 @@ function place(it, size) {
   const url = it.v ? vposter(it.f) : src(it.p.slug, it.f, size);
   const box = { width: w + 'px', height: h + 'px', left: left + 'px', top: top + 'px' };
   // what sits behind a layered picture: a video, or a photo
-  const under = mode === 'layer' ? BYF[it.u] || FLOW.find(x => x.v) : null;
+  const under = mode === 'layer' ? BYF[L.u] || FLOW.find(x => x.v) : null;
   const underImg = under && !under.v ? src(under.p.slug, under.f) : null;
   // the new picture is decoded off-screen, laid on top of the old one, and the old one is removed
   // only after the new one has painted — so there is never a frame with no picture
   const nf = it.v ? null : fresh('fg', url, it.p.title);
-  if (nf) Object.assign(nf.style, box, { objectFit: fixed || mode === 'cover' ? 'cover' : '', objectPosition: it.fp || '' });
+  if (nf) Object.assign(nf.style, box, { objectFit: fixed || mode === 'cover' ? 'cover' : '', objectPosition: L.fp || '' });
   const nb = underImg && bg.getAttribute('src') !== underImg ? fresh('bg', underImg, '') : null;
   if (nb) nb.setAttribute('aria-hidden', 'true');
   const dec = el => el ? (el.decode ? el.decode() : new Promise(r => el.onload = r)).catch(() => {}) : 0;
@@ -97,7 +90,7 @@ function place(it, size) {
   const apply = () => {
     if (token !== placeToken) return;
     const oldFg = fg, oldBg = bg;
-    if (it.v) { Object.assign(fgv.style, box); fgv.play?.().catch(() => {}); }
+    if (it.v) { Object.assign(fgv.style, box, { objectPosition: L.fp || '' }); fgv.play?.().catch(() => {}); }
     else { fgv.pause?.(); oldFg.after(nf); fg = nf; }
     if (nb) { oldBg.after(nb); bg = nb; }
     if (under?.v) uv.play?.().catch(() => {}); else uv.pause?.();
@@ -106,7 +99,7 @@ function place(it, size) {
     stage.classList.toggle('ulayer', !!under?.v);
     stage.classList.toggle('ilayer', !!underImg);
     document.body.classList.toggle('dark', mode === 'cover' || mode === 'layer');
-    setName(it, mode, top, h, vw, vh, m);
+    setName(L, mode, top, h, vw, vh, m);
     tone();
     later(() => { if (!it.v && oldFg !== fg) oldFg.remove(); if (nb && oldBg !== bg) oldBg.remove(); });
   };
@@ -170,13 +163,19 @@ function show(i) {
   else { clearTimeout(flickT); intro.running = false; land(); }
   lastPi = it.pi;
 }
-function preloadVideo(f) { ready(vposter(f)); const v = document.createElement('link'); v.rel = 'preload'; v.as = 'video'; v.href = vsrc(f); document.head.appendChild(v); }
+const preloaded = new Set();
+function preloadVideo(f) {
+  ready(vposter(f));
+  if (preloaded.has(f)) return; preloaded.add(f);
+  const v = document.createElement('video'); v.muted = true; v.preload = 'auto'; v.src = vsrc(f);
+}
 function preload(i) {
-  [i + 1, i - 1, i + 2].forEach(j => {
+  [i + 1, i - 1, i + 2, i + 3].forEach(j => {
     const n = FLOW[(j + FLOW.length) % FLOW.length];
     if (n.v) return preloadVideo(n.f);
     ready(src(n.p.slug, n.f));
-    if (modeOf(n) === 'layer') { const u = BYF[n.u] || FLOW.find(x => x.v); if (u) u.v ? preloadVideo(u.f) : ready(src(u.p.slug, u.f)); }
+    const L = lay(n);
+    if (modeOf(L) === 'layer') { const u = BYF[L.u] || FLOW.find(x => x.v); if (u) u.v ? preloadVideo(u.f) : ready(src(u.p.slug, u.f)); }
   });
 }
 const hashFor = i => i === 0 ? '#/' : `#/${FLOW[i].p.slug}/${FLOW[i].k + 1}`;
