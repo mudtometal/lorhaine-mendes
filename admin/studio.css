@@ -193,3 +193,16 @@ dialog .token{width:100%;padding:8px 10px;border:1px solid var(--line);border-ra
 .prow .rm{opacity:0;width:20px;height:20px;border-radius:4px;color:inherit;text-align:center;font-size:15px;line-height:20px;flex:none}
 .prow:hover .rm,.prow.on .rm{opacity:.55}
 .prow .rm:hover{opacity:1;background:rgba(127,127,127,.18)}
+
+/* background pad */
+.bgpad{background:#fafafa}
+.bbox{position:absolute;cursor:grab;overflow:hidden}
+.bbox:active{cursor:grabbing}
+.bbox img{width:100%;height:100%;display:block;object-fit:cover;pointer-events:none}
+.fbox{position:absolute;outline:1.5px dashed var(--ink);outline-offset:-1px;background:rgba(255,255,255,.35);pointer-events:none}
+.bgcur{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.bgcur img{height:64px;width:auto;border-radius:4px;display:block}
+.bgcur .nobg{width:64px;height:64px;border:1px dashed #d4d4d4;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--mute);text-align:center}
+.bgcur>div{display:flex;flex-direction:column;gap:6px}
+.btn2{border:1px solid var(--line);border-radius:6px;padding:5px 10px;background:#fff}
+.btn2:hover{border-color:var(--ink)}

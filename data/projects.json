@@ -285,7 +285,13 @@
      "h": 2400,
      "m": "layer",
      "n": false,
-     "u": "video-01"
+     "ub": {
+      "f": "video-01",
+      "w": 1600,
+      "h": 900,
+      "slug": "make-believe",
+      "v": true
+     }
     },
     {
      "f": "make-believe-04",

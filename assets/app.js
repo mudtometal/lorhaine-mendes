@@ -65,6 +65,16 @@ function vidReady(el, url, poster) {
   if (el.src !== want) { el.poster = poster; el.src = want; }
   return ready(poster);
 }
+function underOf(L) {
+  if (L.ub?.f) return { ...L.ub, p: { slug: L.ub.slug || 'bg' } };
+  return BYF[L.u] || FLOW.find(x => x.v) || null;
+}
+function underBox(L, u, vw, vh, m) {
+  const s = L.bs ?? 1;
+  if (s >= .999) return { left: '0px', top: '0px', width: vw + 'px', height: vh + 'px', right: 'auto', bottom: 'auto', objectFit: 'cover', objectPosition: L.bfp || '' };
+  const b = boxFor({ w: u.w, h: u.h, s, x: L.bx, y: L.by }, 'full', vw, vh, m);
+  return { left: b.left + 'px', top: b.top + 'px', width: b.w + 'px', height: b.h + 'px', right: 'auto', bottom: 'auto', objectFit: '', objectPosition: '' };
+}
 function place(it, size) {
   const vw = innerWidth, vh = innerHeight, m = mobile(), L = lay(it);
   let mode = modeOf(L);
@@ -77,7 +87,9 @@ function place(it, size) {
   const url = it.v ? vposter(it.f) : src(it.p.slug, it.f, size);
   const box = { width: w + 'px', height: h + 'px', left: left + 'px', top: top + 'px' };
   // what sits behind a layered picture: a video, or a photo
-  const under = mode === 'layer' ? BYF[L.u] || FLOW.find(x => x.v) : null;
+  // what sits behind a layered picture: its own photo or video (ub), sized and placed separately
+  const under = mode === 'layer' ? underOf(L) : null;
+  const ubox = under ? underBox(L, under, vw, vh, m) : null;
   const underImg = under && !under.v ? src(under.p.slug, under.f) : null;
   // the new picture is decoded off-screen, laid on top of the old one, and the old one is removed
   // only after the new one has painted — so there is never a frame with no picture
@@ -93,12 +105,13 @@ function place(it, size) {
     if (it.v) { Object.assign(fgv.style, box, { objectPosition: L.fp || '' }); fgv.play?.().catch(() => {}); }
     else { fgv.pause?.(); oldFg.after(nf); fg = nf; }
     if (nb) { oldBg.after(nb); bg = nb; }
+    if (ubox) Object.assign((under.v ? uv : bg).style, ubox);
     if (under?.v) uv.play?.().catch(() => {}); else uv.pause?.();
     stage.classList.toggle('isvid', !!it.v);
     stage.classList.toggle('is-layer', mode === 'layer');
     stage.classList.toggle('ulayer', !!under?.v);
     stage.classList.toggle('ilayer', !!underImg);
-    document.body.classList.toggle('dark', mode === 'cover' || mode === 'layer');
+    document.body.classList.toggle('dark', mode === 'cover' || (mode === 'layer' && !!under && (L.bs ?? 1) >= .999));
     setName(L, mode, top, h, vw, vh, m);
     tone();
     later(() => { if (!it.v && oldFg !== fg) oldFg.remove(); if (nb && oldBg !== bg) oldBg.remove(); });
@@ -175,7 +188,7 @@ function preload(i) {
     if (n.v) return preloadVideo(n.f);
     ready(src(n.p.slug, n.f));
     const L = lay(n);
-    if (modeOf(L) === 'layer') { const u = BYF[L.u] || FLOW.find(x => x.v); if (u) u.v ? preloadVideo(u.f) : ready(src(u.p.slug, u.f)); }
+    if (modeOf(L) === 'layer') { const u = underOf(L); if (u) u.v ? preloadVideo(u.f) : ready(src(u.p.slug, u.f)); }
   });
 }
 const hashFor = i => i === 0 ? '#/' : `#/${FLOW[i].p.slug}/${FLOW[i].k + 1}`;

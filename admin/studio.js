@@ -209,6 +209,17 @@ function boxFor(L, mode) {                         // same maths as the site
   return { w, h, left, top, vw, vh };
 }
 
+// layered slides: the background is its own media {f,w,h,v,slug}, picked from the site or uploaded
+const bgMedia = () => {                       // everything that can go behind: all slides + uploaded backgrounds
+  const seen = new Set(), out = [];
+  const add = (x, label) => { if (!x?.f || seen.has(x.f)) return; seen.add(x.f); out.push({ ...x, label }); };
+  allItems().forEach(({ p, im }) => add({ f: im.f, w: im.w, h: im.h, v: !!im.v, slug: p.slug }, p.title));
+  allItems().forEach(({ im }) => [im.ub, im.ph?.ub].forEach(u => add(u, 'Uploaded background')));
+  return out;
+};
+const ubOf = L => L.ub?.f ? L.ub : (() => { const x = allItems().find(y => y.im.f === L.u) || allItems().find(y => y.im.v); return x ? { f: x.im.f, w: x.im.w, h: x.im.h, v: !!x.im.v, slug: x.p.slug } : null; })();
+const ubThumb = u => u.v ? (pending[u.f]?.poster || `../media/video/${u.f}.jpg`) : (pending[u.f]?.md || `../media/md/${u.slug || 'bg'}/${u.f}.webp`);
+
 function slideHTML(p) {
   if (!p.images.length) return `<p class="empty">This project has no slides yet.<br><br>Click <b>+</b> in the strip below, or drop photos and videos onto the preview.</p>`;
   const sel = [...new Set([V.k, ...multi])].sort((a, b) => a - b), im = p.images[V.k], many = sel.length > 1;
@@ -216,7 +227,7 @@ function slideHTML(p) {
   const dev = device === 'phone' ? 'Phone' : 'Desktop';
   const others = allItems().filter(x => x.im !== im && !(modeOf(x.im) === 'layer' && !x.im.v));
   const run = (() => { let r = 1, best = 0, s = ''; p.images.forEach((x, i) => { r = i && modeOf(view(x)) === modeOf(view(p.images[i - 1])) ? r + 1 : 1; if (r > best) { best = r; s = modeOf(view(x)); } }); return best >= 3 ? LAYOUTS[s][0] : ''; })();
-  const under = L.u || allItems().find(x => x.im.v)?.im.f;
+  const ub = ubOf(L);
   return `
     <div class="ph"><b>${many ? `${sel.length} slides selected` : `Slide ${V.k + 1}`}</b><span>${many ? 'changes apply to all of them' : `of ${p.images.length}${im.v ? ' · video' : ''}`}</span></div>
     <div class="devnote"><span class="pill">${dev} layout</span>${device === 'phone'
@@ -231,8 +242,11 @@ function slideHTML(p) {
     </div>
     ${!many ? padHTML(p, im, L, m) : ''}
     ${!many && m === 'layer' ? `<div class="sec"><span class="lab">Behind it</span>
-      <div class="unders">${others.map(x => `<button data-u="${x.im.f}" class="${under === x.im.f ? 'on' : ''}" title="${esc(x.p.title)}${x.im.v ? ' · video' : ''}"><img src="${thumb(x.p, x.im)}" alt="">${x.im.v ? '<span class="v">Video</span>' : ''}</button>`).join('')}</div>
-      <p class="help">A video or photo that fills the screen behind this picture.</p></div>` : ''}
+      <div class="bgcur">${ub ? `<img src="${ubThumb(ub)}" alt="">` : '<span class="nobg">Nothing yet</span>'}
+        <div><button class="btn2 upbg">${bgUp ? 'Adding…' : 'Upload new'}</button><button class="btn2 pickbg">${pickOpen ? 'Hide' : 'Choose from site'}</button></div></div>
+      ${pickOpen ? `<div class="unders">${bgMedia().filter(u => u.f !== im.f).map(u => `<button data-ub="${u.f}" class="${ub?.f === u.f ? 'on' : ''}" title="${esc(u.label)}${u.v ? ' · video' : ''}"><img src="${ubThumb(u)}" alt="">${u.v ? '<span class="v">Video</span>' : ''}</button>`).join('')}</div>` : ''}
+      <p class="help">Upload a new photo or video, or pick one from the site. It only shows behind this slide.</p></div>
+      ${ub ? bgPadHTML(p, im, L, ub) : ''}` : ''}
     ${!many ? `<div class="sec"><button class="sw ${L.n && nameOk(m) ? 'on' : ''}" ${nameOk(m) ? '' : 'disabled'}><i></i>Show “Lorhaine Mendes” behind the picture</button><p class="help">${nameOk(m) ? 'Her name in big letters behind the picture. Looks best on a few slides only.' : 'Only with Large or Small. The other layouts would cover it.'}</p></div>` : ''}
     <div class="sec"><button class="danger del">${many ? `Delete ${sel.length} slides` : 'Delete slide'}</button></div>`;
 }
@@ -245,10 +259,55 @@ function padHTML(p, im, L, m) {
       <div class="crop" style="aspect-ratio:${im.w}/${im.h}"><img src="${thumb(p, im)}" alt="" draggable="false"><div class="win"></div></div>
       <p class="help">The screen crops the picture. Drag the frame to choose what shows.</p></div>`;
   }
-  return `<div class="sec"><span class="lab">Size and position</span>
+  return `<div class="sec"><span class="lab">${m === 'layer' ? 'Picture on top: size and position' : 'Size and position'}</span>
     <div class="pad ${device}" style="aspect-ratio:${vw}/${vh}"><div class="pbox"><img src="${thumb(p, im)}" alt="" draggable="false"></div></div>
     <div class="sizer"><span>Size</span><input type="range" min="20" max="100" step="1" value="${Math.round((L.s ?? SIZE[m] ?? 1) * 100)}"><b></b></div>
     <p class="help">Drag the picture to place it. <button class="link centre">Centre it</button></p></div>`;
+}
+function bgPadHTML(p, im, L, ub) {
+  const [vw, vh] = SCREENS[device], s = Math.round((L.bs ?? 1) * 100);
+  return `<div class="sec"><span class="lab">Background: size and position</span>
+    <div class="pad bgpad ${device}" style="aspect-ratio:${vw}/${vh}"><div class="bbox"><img src="${ubThumb(ub)}" alt="" draggable="false"></div><div class="fbox"></div></div>
+    <div class="sizer"><span>Size</span><input class="bsize" type="range" min="20" max="100" step="1" value="${s}"><b></b></div>
+    <p class="help bnote"></p></div>`;
+}
+function bindBgPad(el, p, im) {
+  const pad = $('.bgpad', el); if (!pad) return;
+  const L = view(im), ub = ubOf(L), box = $('.bbox', pad), fbox = $('.fbox', pad), range = $('.bsize', el), out = range.nextElementSibling, note = $('.bnote', el);
+  const [vw, vh] = SCREENS[device];
+  let t = { bs: L.bs ?? 1, bx: L.bx, by: L.by, bfp: L.bfp || '50% 50%' };
+  const fb = boxFor(L, 'layer');
+  Object.assign(fbox.style, { left: fb.left / vw * 100 + '%', top: fb.top / vh * 100 + '%', width: fb.w / vw * 100 + '%', height: fb.h / vh * 100 + '%' });
+  const draw = () => {
+    out.textContent = Math.round(t.bs * 100) + '%';
+    if (t.bs >= .999) {
+      Object.assign(box.style, { left: 0, top: 0, width: '100%', height: '100%' });
+      $('img', box).style.objectPosition = t.bfp;
+      note.textContent = 'Fills the screen. Drag to choose what stays in view, or lower the size to place it.';
+    } else {
+      const b = boxFor({ w: ub.w, h: ub.h, s: t.bs, x: t.bx, y: t.by }, 'full');
+      Object.assign(box.style, { left: b.left / vw * 100 + '%', top: b.top / vh * 100 + '%', width: b.w / vw * 100 + '%', height: b.h / vh * 100 + '%' });
+      $('img', box).style.objectPosition = '';
+      note.textContent = 'Drag the background to place it. The outline is the picture on top.';
+    }
+  };
+  draw();
+  drag(box, pad, (dx, dy, W, H) => {
+    if (t.bs >= .999) {                                  // full: move what stays in view
+      const r = ub.w / ub.h, sr = vw / vh, fw = r > sr ? sr / r : 1, fh = r > sr ? 1 : r / sr;
+      let [px, py] = t.bfp.split(' ').map(parseFloat);
+      if (fw < 1) px = Math.min(100, Math.max(0, px - dx / W * 100 / (1 / fw - 1)));
+      if (fh < 1) py = Math.min(100, Math.max(0, py - dy / H * 100 / (1 / fh - 1)));
+      t.bfp = `${Math.round(px)}% ${Math.round(py)}%`;
+    } else {
+      const b = boxFor({ w: ub.w, h: ub.h, s: t.bs, x: t.bx, y: t.by }, 'full');
+      t.bx = Math.min(100, Math.max(0, (b.left + b.w / 2) / vw * 100 + dx / W * 100));
+      t.by = Math.min(100, Math.max(0, (b.top + b.h / 2) / vh * 100 + dy / H * 100));
+    }
+    draw();
+  }, () => edit(() => { const g = tgt(im); if (t.bs >= .999) g.bfp = t.bfp; else { g.bx = Math.round(t.bx); g.by = Math.round(t.by); } }));
+  range.oninput = () => { t.bs = range.value / 100; draw(); };
+  range.onchange = () => edit(() => { const g = tgt(im); g.bs = +(range.value / 100).toFixed(2); if (g.bs >= .999) { delete g.bs; delete g.bx; delete g.by; } });
 }
 function bindPad(el, p, im) {
   const L = () => view(im), m = modeOf(L());
@@ -298,7 +357,10 @@ function bindSlide(el, p) {
   if (!p.images.length) return;
   const sel = [...new Set([V.k, ...multi])], im = p.images[V.k];
   $$('[data-m]', el).forEach(b => b.onclick = () => { if (b.disabled) return; edit(() => sel.forEach(k => setLayout(p.images[k], b.dataset.m))); });
-  $$('[data-u]', el).forEach(b => b.onclick = () => edit(() => { tgt(im).u = b.dataset.u; }));
+  $$('[data-ub]', el).forEach(b => b.onclick = () => { pickOpen = false; const u = bgMedia().find(x => x.f === b.dataset.ub); if (!u) return; edit(() => { const g = tgt(im); const { label, ...ub } = u; g.ub = ub; delete g.u; }); });
+  const up = $('.upbg', el); if (up) up.onclick = () => { bgFor = im; $('.bgpick').click(); };
+  const pk = $('.pickbg', el); if (pk) pk.onclick = () => { pickOpen = !pickOpen; renderPanel(); };
+  if (sel.length === 1) bindBgPad(el, p, im);
   const sw = $('.sw', el); if (sw) sw.onclick = () => edit(() => { tgt(im).n = !view(im).n; });
   const same = $('.same', el); if (same) same.onclick = () => edit(() => { delete im.ph; });
   if (sel.length === 1) bindPad(el, p, im);
@@ -313,7 +375,7 @@ function setLayout(im, m) {
   g.m = m;
   delete g.s; delete g.x; delete g.y; delete g.fp;          // a new layout starts from its own defaults
   if (m === 'small' && device === 'desk') g.x = 64;
-  if (m === 'layer') g.u ||= view(im).u || allItems().find(x => x.im.v)?.im.f; else delete g.u;
+  if (m === 'layer') { if (!view(im).ub) { const u = ubOf(view(im)); if (u) g.ub = u; } } else { delete g.u; delete g.ub; delete g.bs; delete g.bx; delete g.by; delete g.bfp; }
   if (device === 'phone' && im.ph && Object.keys(im.ph).length === 1 && im.ph.m === im.m) delete im.ph;   // same as desktop again
 }
 
@@ -376,6 +438,28 @@ $('.addp').onclick = () => {
 };
 
 /* ---------- adding photos and videos: + button, or drop anywhere ---------- */
+let bgFor = null, bgUp = false, pickOpen = false;
+$('.bgpick').onchange = async e => {
+  const file = e.target.files[0]; e.target.value = ''; const im = bgFor; if (!file || !im) return;
+  bgUp = true; renderPanel();
+  try {
+    const f = nextName('bg');
+    let ub;
+    if (file.type.startsWith('video/')) {
+      if (file.size > 90 * 1024 * 1024) throw new Error(`${file.name} is over 90 MB. Export a smaller version and try again.`);
+      const { w, h, poster } = await videoInfo(file);
+      pending[f] = { mp4: URL.createObjectURL(file), poster: URL.createObjectURL(poster), files: { [`media/video/${f}.mp4`]: file, [`media/video/${f}.jpg`]: poster } };
+      ub = { f, w, h, v: true, slug: 'bg' };
+    } else if (file.type.startsWith('image/')) {
+      const bmp = await createImageBitmap(file).catch(() => { throw new Error(`${file.name} can’t be opened here. Export it as a JPG.`); });
+      const web = await resize(bmp, 2400, .86), md = await resize(bmp, 1400, .84);
+      pending[f] = { web: URL.createObjectURL(web.blob), md: URL.createObjectURL(md.blob), files: { [`media/web/bg/${f}.webp`]: web.blob, [`media/md/bg/${f}.webp`]: md.blob } };
+      ub = { f, w: web.w, h: web.h, slug: 'bg' };
+    } else throw new Error(`${file.name} isn’t a photo or video.`);
+    bgUp = false;
+    edit(() => { const g = tgt(im); g.ub = ub; delete g.u; delete g.bs; delete g.bx; delete g.by; delete g.bfp; });
+  } catch (err) { bgUp = false; renderPanel(); toast(err.message || 'That file couldn’t be added'); }
+};
 $('.filepick').onchange = e => { const f = [...e.target.files]; e.target.value = ''; addFiles(f); };
 const stageEl = $('.stage');
 let dragDepth = 0;
@@ -409,7 +493,7 @@ async function addFiles(files) {
   V.k = p.images.length - 1; multi.clear(); tab = 'slide';
   saved(); render();
 }
-function nextName(slug) { const used = new Set(allItems().map(x => x.im.f)); let n = 1, f; do f = `${slug}-${String(n++).padStart(2, '0')}`; while (used.has(f) || pending[f]); return f; }
+function nextName(slug) { const used = new Set([...allItems().map(x => x.im.f), ...bgMedia().map(u => u.f)]); let n = 1, f; do f = `${slug}-${String(n++).padStart(2, '0')}`; while (used.has(f) || pending[f]); return f; }
 async function resize(bmp, max, q) {
   const s = Math.min(1, max / Math.max(bmp.width, bmp.height)), w = Math.round(bmp.width * s), h = Math.round(bmp.height * s);
   const c = new OffscreenCanvas(w, h); c.getContext('2d').drawImage(bmp, 0, 0, w, h);
