@@ -38,18 +38,21 @@ const modeOf = it => it.m === 'frame' ? 'full' : MODES.includes(it.m) ? it.m : '
 const lay = it => mobile() && it.ph ? { ...it, ...it.ph } : it;
 const SIZE = { full: 1, small: .55, layer: .7 };     // share of the biggest size that fits
 const UI = 44;
+const clamp = (v, a, b) => Math.min(Math.max(v, Math.min(a, b)), Math.max(a, b));
+// Full screen: starts exactly filling the screen; bigger sizes zoom in, x/y pan
+function coverBox(w0, h0, s, x, y, vw, vh) {
+  const c = Math.max(vw / w0, vh / h0), w = w0 * c * s, h = h0 * c * s;
+  return { w, h, left: clamp(vw * (x ?? 50) / 100 - w / 2, 0, vw - w), top: clamp(vh * (y ?? 50) / 100 - h / 2, 0, vh - h) };
+}
 function boxFor(L, mode, vw, vh, m) {
-  if (mode === 'cover') return { w: vw, h: vh, left: 0, top: 0 };
+  if (mode === 'cover') return coverBox(L.w, L.h, Math.max(1, L.s ?? 1), L.x, L.y, vw, vh);
   const r = L.w / L.h, pad = m ? (mode === 'full' ? 0 : 14) : 20;
   const availW = vw - pad * 2, availH = vh - UI * 2;
   let h = availH, w = h * r;
   if (w > availW) { w = availW; h = w / r; }
-  const s = Math.min(1, Math.max(.2, L.s ?? SIZE[mode] ?? 1));
+  const s = Math.min(2, Math.max(.2, L.s ?? SIZE[mode] ?? 1));
   w *= s; h *= s;
-  let left = vw * (L.x ?? 50) / 100 - w / 2, top = vh * (L.y ?? 50) / 100 - h / 2;
-  left = Math.min(Math.max(left, pad), vw - w - pad);
-  top = Math.min(Math.max(top, UI), vh - h - UI);
-  return { w, h, left, top };
+  return { w, h, left: clamp(vw * (L.x ?? 50) / 100 - w / 2, pad, vw - w - pad), top: clamp(vh * (L.y ?? 50) / 100 - h / 2, UI, vh - h - UI) };
 }
 
 let placeToken = 0;
@@ -69,11 +72,9 @@ function underOf(L) {
   if (L.ub?.f) return { ...L.ub, p: { slug: L.ub.slug || 'bg' } };
   return BYF[L.u] || FLOW.find(x => x.v) || null;
 }
-function underBox(L, u, vw, vh, m) {
-  const s = L.bs ?? 1;
-  if (s >= .999) return { left: '0px', top: '0px', width: vw + 'px', height: vh + 'px', right: 'auto', bottom: 'auto', objectFit: 'cover', objectPosition: L.bfp || '' };
-  const b = boxFor({ w: u.w, h: u.h, s, x: L.bx, y: L.by }, 'full', vw, vh, m);
-  return { left: b.left + 'px', top: b.top + 'px', width: b.w + 'px', height: b.h + 'px', right: 'auto', bottom: 'auto', objectFit: '', objectPosition: '' };
+function underBox(L, u, vw, vh) {
+  const b = coverBox(u.w, u.h, Math.min(2, Math.max(.2, L.bs ?? 1)), L.bx, L.by, vw, vh);
+  return { left: b.left + 'px', top: b.top + 'px', width: b.w + 'px', height: b.h + 'px', right: 'auto', bottom: 'auto', objectFit: 'cover', objectPosition: '' };
 }
 function place(it, size) {
   const vw = innerWidth, vh = innerHeight, m = mobile(), L = lay(it);
@@ -89,12 +90,12 @@ function place(it, size) {
   // what sits behind a layered picture: a video, or a photo
   // what sits behind a layered picture: its own photo or video (ub), sized and placed separately
   const under = mode === 'layer' ? underOf(L) : null;
-  const ubox = under ? underBox(L, under, vw, vh, m) : null;
+  const ubox = under ? underBox(L, under, vw, vh) : null;
   const underImg = under && !under.v ? src(under.p.slug, under.f) : null;
   // the new picture is decoded off-screen, laid on top of the old one, and the old one is removed
   // only after the new one has painted — so there is never a frame with no picture
   const nf = it.v ? null : fresh('fg', url, it.p.title);
-  if (nf) Object.assign(nf.style, box, { objectFit: fixed || mode === 'cover' ? 'cover' : '', objectPosition: L.fp || '' });
+  if (nf) Object.assign(nf.style, box, { objectFit: fixed ? 'cover' : '', objectPosition: '' });
   const nb = underImg && bg.getAttribute('src') !== underImg ? fresh('bg', underImg, '') : null;
   if (nb) nb.setAttribute('aria-hidden', 'true');
   const dec = el => el ? (el.decode ? el.decode() : new Promise(r => el.onload = r)).catch(() => {}) : 0;
@@ -102,7 +103,7 @@ function place(it, size) {
   const apply = () => {
     if (token !== placeToken) return;
     const oldFg = fg, oldBg = bg;
-    if (it.v) { Object.assign(fgv.style, box, { objectPosition: L.fp || '' }); fgv.play?.().catch(() => {}); }
+    if (it.v) { Object.assign(fgv.style, box); fgv.play?.().catch(() => {}); }
     else { fgv.pause?.(); oldFg.after(nf); fg = nf; }
     if (nb) { oldBg.after(nb); bg = nb; }
     if (ubox) Object.assign((under.v ? uv : bg).style, ubox);
@@ -111,7 +112,7 @@ function place(it, size) {
     stage.classList.toggle('is-layer', mode === 'layer');
     stage.classList.toggle('ulayer', !!under?.v);
     stage.classList.toggle('ilayer', !!underImg);
-    document.body.classList.toggle('dark', mode === 'cover' || (mode === 'layer' && !!under && (L.bs ?? 1) >= .999));
+    document.body.classList.toggle('dark', mode === 'cover' || (mode === 'layer' && !!under && (L.bs ?? 1) >= 1));
     setName(L, mode, top, h, vw, vh, m);
     tone();
     later(() => { if (!it.v && oldFg !== fg) oldFg.remove(); if (nb && oldBg !== bg) oldBg.remove(); });
@@ -120,7 +121,7 @@ function place(it, size) {
 }
 
 /* ---------- her name in Bodoni: still, only on the slides chosen for it, a different slice each time ---------- */
-const nameOn = (it, mode) => (mode === 'full' || mode === 'small') && (it.n ?? (hash(it.f + 'n') % 6 === 0));
+const nameOn = (it, mode) => (mode === 'full' || mode === 'small' || mode === 'layer') && (it.n ?? (hash(it.f + 'n') % 6 === 0));
 function setName(it, mode, top, h, vw, vh, m) {
   const show = !intro.running && nameOn(it, mode);
   bigname.classList.toggle('on', show);
@@ -267,7 +268,7 @@ function renderInfo() {
       <p class="bio">${esc(data.bio)}</p>
       <p class="links">
         ${mail ? `<a class="write" href="${esc(mail)}">Write something</a>` : ''}
-        ${data.instagram ? `<a href="https://instagram.com/${esc(data.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ''}
+        ${data.instagram ? `<a href="https://instagram.com/${esc(data.instagram)}" target="_blank" rel="noopener">Instagram</a>` : '<span>Instagram</span>'}
       </p>
       ${data.newsletter ? `<form class="news" novalidate><button type="button" class="nlink">Newsletter</button><input name="email" type="email" placeholder="Your email" aria-label="Newsletter email" required hidden><button class="join" type="submit" hidden>Join</button></form>` : ''}
     </div>`;

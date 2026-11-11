@@ -15,7 +15,7 @@ const LAYOUTS = {
 };
 const CREDITS = { strip: ['Strip', 'Pictures in one row, scroll sideways'], stack: ['Stack', 'Credits left, pictures down the right'], grid: ['Grid', 'Credits on top, two columns'] };
 const modeOf = im => im.m === 'frame' ? 'full' : LAYOUTS[im.m] ? im.m : 'full';
-const nameOk = m => m === 'full' || m === 'small';
+const nameOk = m => m === 'full' || m === 'small' || m === 'layer';
 const art = k => `<div class="art ${k}">${'<i></i>'.repeat(k === 'strip' ? 3 : k === 'grid' ? 4 : 1)}${CREDITS[k] ? '<u></u>' : ''}</div>`;
 
 /* ---------- data ---------- */
@@ -199,16 +199,20 @@ const SCREENS = { desk: [1440, 900], phone: [390, 844] };
 const SIZE = { full: 1, small: .55, layer: .7 };
 const view = im => device === 'phone' && im.ph ? { ...im, ...im.ph } : im;      // what this device shows
 const tgt = im => device === 'phone' ? (im.ph ||= {}) : im;                  // where edits go
+const clamp = (v, a, b) => Math.min(Math.max(v, Math.min(a, b)), Math.max(a, b));
+function coverBox(w0, h0, sc, x, y) {
+  const [vw, vh] = SCREENS[device], c = Math.max(vw / w0, vh / h0), w = w0 * c * sc, h = h0 * c * sc;
+  return { w, h, left: clamp(vw * (x ?? 50) / 100 - w / 2, 0, vw - w), top: clamp(vh * (y ?? 50) / 100 - h / 2, 0, vh - h), vw, vh };
+}
 function boxFor(L, mode) {                         // same maths as the site
   const [vw, vh] = SCREENS[device], m = device === 'phone', UI = 44;
-  if (mode === 'cover') return { w: vw, h: vh, left: 0, top: 0 };
+  if (mode === 'cover') return coverBox(L.w, L.h, Math.max(1, L.s ?? 1), L.x, L.y);
   const r = L.w / L.h, pad = m ? (mode === 'full' ? 0 : 14) : 20, aw = vw - pad * 2, ah = vh - UI * 2;
   let h = ah, w = h * r; if (w > aw) { w = aw; h = w / r; }
-  const s = Math.min(1, Math.max(.2, L.s ?? SIZE[mode] ?? 1)); w *= s; h *= s;
-  let left = vw * (L.x ?? 50) / 100 - w / 2, top = vh * (L.y ?? 50) / 100 - h / 2;
-  left = Math.min(Math.max(left, pad), vw - w - pad); top = Math.min(Math.max(top, UI), vh - h - UI);
-  return { w, h, left, top, vw, vh };
+  const sc = Math.min(2, Math.max(.2, L.s ?? SIZE[mode] ?? 1)); w *= sc; h *= sc;
+  return { w, h, left: clamp(vw * (L.x ?? 50) / 100 - w / 2, pad, vw - w - pad), top: clamp(vh * (L.y ?? 50) / 100 - h / 2, UI, vh - h - UI), vw, vh };
 }
+const bgBox = (L, u) => coverBox(u.w, u.h, Math.min(2, Math.max(.2, L.bs ?? 1)), L.bx, L.by);
 
 // layered slides: the background is its own media {f,w,h,v,slug}, picked from the site or uploaded
 const bgMedia = () => {                       // everything that can go behind: all slides + uploaded backgrounds
@@ -247,154 +251,102 @@ function slideHTML(p) {
         <div><button class="btn2 upbg">${bgUp ? 'Adding…' : 'Upload new'}</button><button class="btn2 pickbg">${pickOpen ? 'Hide' : 'Choose from site'}</button></div></div>
       ${pickOpen ? `<div class="unders">${bgMedia().filter(u => u.f !== im.f).map(u => `<button data-ub="${u.f}" class="${ub?.f === u.f ? 'on' : ''}" title="${esc(u.label)}${u.v ? ' · video' : ''}"><img src="${ubThumb(u)}" alt="">${u.v ? '<span class="v">Video</span>' : ''}</button>`).join('')}</div>` : ''}
       <p class="help">Upload a new photo or video, or pick one from the site. It only shows behind this slide.</p></div>
-      ${ub ? bgPadHTML(p, im, L, ub) : ''}` : ''}
-    ${!many ? `<div class="sec"><button class="sw ${L.n && nameOk(m) ? 'on' : ''}" ${nameOk(m) ? '' : 'disabled'}><i></i>Name in the background</button><p class="help">${nameOk(m) ? '“Lorhaine Mendes” in large type behind the picture. Move it in the box above. Looks best on a few slides only.' : 'Only with Large or Small. The other layouts would cover it.'}</p></div>` : ''}
+` : ''}
+    ${!many ? `<div class="sec"><button class="sw ${L.n && nameOk(m) ? 'on' : ''}" ${nameOk(m) ? '' : 'disabled'}><i></i>Name in the background</button><p class="help">${nameOk(m) ? '“Lorhaine Mendes” in large type behind the picture. Move it in the box above. Looks best on a few slides only.' : 'Not with Full screen. The picture would cover it.'}</p></div>` : ''}
     <div class="sec"><button class="danger del">${many ? `Delete ${sel.length} slides` : 'Delete slide'}</button></div>`;
 }
-// the placement pad: a little screen you drag the picture around in, plus a size slider.
-// For Full screen it shows the whole picture with the part the screen keeps; drag that window.
+/* ---------- the placement box ----------
+   A little screen showing the slide as it will look. Drag the picture (and on Layered the
+   background) to move it, the slider sizes whatever is selected (up to 200%), and the
+   Name handle moves her name anywhere up/down/sideways. Everything snaps to centre and thirds. */
+let layerSel = 'pic';
 function padHTML(p, im, L, m) {
-  const [vw, vh] = SCREENS[device];
-  if (m === 'cover') {
-    return `<div class="sec"><span class="lab">What stays in view</span>
-      <div class="crop" style="aspect-ratio:${im.w}/${im.h}"><img src="${thumb(p, im)}" alt="" draggable="false"><div class="win"></div></div>
-      <p class="help">The screen crops the picture. Drag the frame to choose what shows. ${snapLink()}</p></div>`;
-  }
-  return `<div class="sec"><span class="lab">${m === 'layer' ? 'Picture on top: size and position' : 'Size and position'}</span>
-    <div class="pad ${device}" style="aspect-ratio:${vw}/${vh}">${L.n && nameOk(m) ? '<div class="pname"><div class="prun"><span>Lorhaine Mendes</span><span>Lorhaine Mendes</span><span>Lorhaine Mendes</span></div></div><button class="nhandle" title="Drag to move the name">Name</button>' : ''}<div class="pbox"><img src="${thumb(p, im)}" alt="" draggable="false"></div></div>
-    <div class="sizer"><span>Size</span><input type="range" min="20" max="100" step="1" value="${Math.round((L.s ?? SIZE[m] ?? 1) * 100)}"><b></b></div>
-    <p class="help">Drag the picture to place it. It snaps to the centre and thirds. <button class="link centre">Centre it</button> · ${snapLink()}</p>
-    ${L.n && nameOk(m) ? `<p class="help">Drag <b>Name</b> to move her name up, down or sideways. It snaps to the picture’s edges. ${L.ny != null || L.nx != null ? '<button class="link nreset">Reset name</button>' : ''}</p>` : ''}</div>`;
-}
-function bgPadHTML(p, im, L, ub) {
-  const [vw, vh] = SCREENS[device], s = Math.round((L.bs ?? 1) * 100);
-  return `<div class="sec"><span class="lab">Background: size and position</span>
-    <div class="pad bgpad ${device}" style="aspect-ratio:${vw}/${vh}"><div class="bbox"><img src="${ubThumb(ub)}" alt="" draggable="false"></div><div class="fbox"></div></div>
-    <div class="sizer"><span>Size</span><input class="bsize" type="range" min="20" max="100" step="1" value="${s}"><b></b></div>
-    <p class="help"><span class="bnote"></span> ${snapLink()}</p></div>`;
-}
-function bindBgPad(el, p, im) {
-  const pad = $('.bgpad', el); if (!pad) return;
-  const L = view(im), ub = ubOf(L), box = $('.bbox', pad), fbox = $('.fbox', pad), range = $('.bsize', el), out = range.nextElementSibling, note = $('.bnote', el);
-  const [vw, vh] = SCREENS[device];
-  let t = { bs: L.bs ?? 1, bx: L.bx, by: L.by, bfp: L.bfp || '50% 50%' };
-  const fb = boxFor(L, 'layer');
-  Object.assign(fbox.style, { left: fb.left / vw * 100 + '%', top: fb.top / vh * 100 + '%', width: fb.w / vw * 100 + '%', height: fb.h / vh * 100 + '%' });
-  const draw = () => {
-    out.textContent = Math.round(t.bs * 100) + '%';
-    if (t.bs >= .999) {
-      Object.assign(box.style, { left: 0, top: 0, width: '100%', height: '100%' });
-      $('img', box).style.objectPosition = t.bfp;
-      note.textContent = 'Fills the screen. Drag to choose what stays in view, or lower the size to place it.';
-    } else {
-      const b = boxFor({ w: ub.w, h: ub.h, s: t.bs, x: t.bx, y: t.by }, 'full');
-      Object.assign(box.style, { left: b.left / vw * 100 + '%', top: b.top / vh * 100 + '%', width: b.w / vw * 100 + '%', height: b.h / vh * 100 + '%' });
-      $('img', box).style.objectPosition = '';
-      note.textContent = 'Drag the background to place it. The outline is the picture on top.';
-    }
-  };
-  draw();
-  let s0;
-  drag(box, pad, () => {
-    const b = boxFor({ w: ub.w, h: ub.h, s: t.bs, x: t.bx, y: t.by }, 'full');
-    s0 = { fp: t.bfp.split(' ').map(parseFloat), cx: (b.left + b.w / 2) / vw * 100, cy: (b.top + b.h / 2) / vh * 100 };
-  }, (dx, dy, W, H, ev) => {
-    let gx = null, gy = null;
-    if (t.bs >= .999) {                                  // full: move what stays in view
-      const r = ub.w / ub.h, sr = vw / vh, fw = r > sr ? sr / r : 1, fh = r > sr ? 1 : r / sr;
-      let [px, py] = s0.fp;
-      if (fw < 1) [px] = snap(Math.min(100, Math.max(0, px - dx / W * 100 / (1 / fw - 1))), ev, [0, 50, 100], 3);
-      if (fh < 1) [py] = snap(Math.min(100, Math.max(0, py - dy / H * 100 / (1 / fh - 1))), ev, [0, 50, 100], 3);
-      t.bfp = `${Math.round(px)}% ${Math.round(py)}%`;
-    } else {
-      [t.bx, gx] = snap(Math.min(100, Math.max(0, s0.cx + dx / W * 100)), ev);
-      [t.by, gy] = snap(Math.min(100, Math.max(0, s0.cy + dy / H * 100)), ev);
-    }
-    draw(); guides(pad, gx, gy);
-  }, () => edit(() => { const g = tgt(im); if (t.bs >= .999) g.bfp = t.bfp; else { g.bx = +t.bx.toFixed(1); g.by = +t.by.toFixed(1); } }));
-  range.oninput = () => { range.value = snapSize(+range.value); t.bs = range.value / 100; draw(); };
-  range.onchange = () => edit(() => { const g = tgt(im); g.bs = +(range.value / 100).toFixed(2); if (g.bs >= .999) { delete g.bs; delete g.bx; delete g.by; } });
+  const [vw, vh] = SCREENS[device], ub = m === 'layer' ? ubOf(L) : null, name = L.n && nameOk(m);
+  const selBg = m === 'layer' && layerSel === 'bg' && ub;
+  const sz = Math.round((selBg ? (L.bs ?? 1) : (L.s ?? SIZE[m] ?? 1)) * 100);
+  return `<div class="sec"><span class="lab">Size and position</span>
+    ${m === 'layer' ? `<div class="seg mini2"><button data-ls="pic" class="${selBg ? '' : 'on'}">Picture</button><button data-ls="bg" class="${selBg ? 'on' : ''}" ${ub ? '' : 'disabled'}>Background</button></div>` : ''}
+    <div class="pad ${device} ${selBg ? 'bgsel' : ''}" style="aspect-ratio:${vw}/${vh}">
+      ${ub ? `<div class="bbox ${selBg ? 'act' : ''}"><img src="${ubThumb(ub)}" alt="" draggable="false"></div>` : ''}
+      ${name ? '<div class="pname"><div class="prun"><span>Lorhaine Mendes</span><span>Lorhaine Mendes</span><span>Lorhaine Mendes</span></div></div><button class="nhandle" title="Drag to move the name">Name</button>' : ''}
+      <div class="pbox ${selBg ? '' : 'act'}"><img src="${thumb(p, im)}" alt="" draggable="false"></div>
+    </div>
+    <div class="sizer"><span>Size</span><input type="range" min="${m === 'cover' && !selBg ? 100 : 20}" max="200" step="1" value="${sz}"><b></b></div>
+    <p class="help">${m === 'cover' ? 'Fills the screen. Make it bigger to zoom in, then drag to choose what shows.' : m === 'layer' ? 'Drag the picture or the background to move it. The slider sizes the one selected.' : 'Drag the picture to place it.'} <button class="link centre">Centre it</button> · ${snapLink()}</p>
+    ${name ? `<p class="help">Drag <b>Name</b> to move her name up, down or sideways. It stays where you put it. ${L.ny != null || L.nx != null ? '<button class="link nreset">Reset name</button>' : ''}</p>` : ''}
+  </div>`;
 }
 function bindPad(el, p, im) {
-  const L = () => view(im), m = modeOf(L());
-  const crop = $('.crop', el), pad = $('.pad', el);
-  if (crop) {
-    const [vw, vh] = SCREENS[device], r = im.w / im.h, sr = vw / vh;
-    const fw = r > sr ? sr / r : 1, fh = r > sr ? 1 : r / sr;          // share of the picture the screen keeps
-    const win = $('.win', crop);
-    let [px, py] = (L().fp || '50% 50%').split(' ').map(parseFloat);
-    const draw = () => Object.assign(win.style, { width: fw * 100 + '%', height: fh * 100 + '%', left: (1 - fw) * px + '%', top: (1 - fh) * py + '%' });
-    draw();
-    let sx, sy;
-    drag(win, crop, () => { sx = px; sy = py; }, (dx, dy, W, H, ev) => {
-      let gx = null, gy = null;
-      if (fw < 1) [px, gx] = snap(Math.min(100, Math.max(0, sx + dx / ((1 - fw) * W) * 100)), ev, [0, 50, 100], 3);
-      if (fh < 1) [py, gy] = snap(Math.min(100, Math.max(0, sy + dy / ((1 - fh) * H) * 100)), ev, [0, 50, 100], 3);
-      draw();
-      guides(crop, gx == null ? null : (1 - fw) * gx + fw * 50, gy == null ? null : (1 - fh) * gy + fh * 50);
-    }, () => edit(() => { tgt(im).fp = `${Math.round(px)}% ${Math.round(py)}%`; }));
+  const pad = $('.pad', el); if (!pad) return;
+  const L0 = view(im), m = modeOf(L0), ub = m === 'layer' ? ubOf(L0) : null;
+  const pbox = $('.pbox', pad), bbox = $('.bbox', pad), range = $('.sizer input', el), out = $('.sizer b', el);
+  const t = { ...L0 };                                     // working copy while dragging
+  const pct = (b, box) => Object.assign(box.style, { left: b.left / b.vw * 100 + '%', top: b.top / b.vh * 100 + '%', width: b.w / b.vw * 100 + '%', height: b.h / b.vh * 100 + '%' });
+  const draw = () => { pct(boxFor(t, m), pbox); if (bbox && ub) pct(bgBox(t, ub), bbox); out.textContent = range.value + '%'; drawName(); };
+  const sel = () => (m === 'layer' && layerSel === 'bg' && ub) ? 'bg' : 'pic';
+  const setSel = k => { if (k === sel()) return; layerSel = k; renderPanel(); };
+  // picture
+  let c0;
+  const centreOf = b => [(b.left + b.w / 2) / b.vw * 100, (b.top + b.h / 2) / b.vh * 100];
+  drag(pbox, pad, () => { setSelQuiet('pic'); c0 = m === 'cover' ? [t.x ?? 50, t.y ?? 50] : centreOf(boxFor(t, m)); }, (dx, dy, W, H, ev) => {
+    let gx, gy;                                              // the box follows the hand (full screen too: it pans)
+    [t.x, gx] = snap(Math.min(100, Math.max(0, c0[0] + dx / W * 100)), ev);
+    [t.y, gy] = snap(Math.min(100, Math.max(0, c0[1] + dy / H * 100)), ev);
+    [t.x, t.y] = centreOf(boxFor(t, m));                     // stop at the edges (no dead zone when dragging back)
+    draw(); guides(pad, gx, gy);
+  }, () => edit(() => { const g = tgt(im); g.x = +t.x.toFixed(1); g.y = +t.y.toFixed(1); }));
+  // background
+  if (bbox && ub) drag(bbox, pad, () => { setSelQuiet('bg'); c0 = [t.bx ?? 50, t.by ?? 50]; }, (dx, dy, W, H, ev) => {
+    const b = bgBox(t, ub), big = b.w > b.vw || b.h > b.vh; let gx, gy;
+    [t.bx, gx] = snap(Math.min(100, Math.max(0, c0[0] + dx / W * 100)), ev);
+    [t.by, gy] = snap(Math.min(100, Math.max(0, c0[1] + dy / H * 100)), ev);
+    [t.bx, t.by] = centreOf(bgBox(t, ub));
+    draw(); guides(pad, big ? null : gx, big ? null : gy);
+  }, () => edit(() => { const g = tgt(im); g.bx = +t.bx.toFixed(1); g.by = +t.by.toFixed(1); }));
+  function setSelQuiet(k) { if (m !== 'layer' || !ub) return; layerSel = k; pbox.classList.toggle('act', k === 'pic'); bbox?.classList.toggle('act', k === 'bg'); pad.classList.toggle('bgsel', k === 'bg');
+    $$('[data-ls]', el).forEach(b => b.classList.toggle('on', b.dataset.ls === k));
+    range.min = 20; range.value = Math.round((k === 'bg' ? (t.bs ?? 1) : (t.s ?? SIZE[m] ?? 1)) * 100); out.textContent = range.value + '%'; }
+  $$('[data-ls]', el).forEach(b => b.onclick = () => setSel(b.dataset.ls));
+  range.oninput = () => { range.value = snapSize(+range.value); if (sel() === 'bg') t.bs = range.value / 100; else t.s = range.value / 100; draw(); };
+  range.onchange = () => edit(() => { const g = tgt(im), v = +(range.value / 100).toFixed(2); if (sel() === 'bg') g.bs = v; else g.s = v; });
+  $('.centre', el).onclick = () => edit(() => { const g = tgt(im); if (sel() === 'bg') { delete g.bx; delete g.by; } else { delete g.x; delete g.y; } });
+  // her name: placed on the screen (not tied to the picture)
+  const band = $('.pname', pad), run = $('.prun', pad), handle = $('.nhandle', pad);
+  function nameGeom() {
+    const [vw, vh] = SCREENS[device], phone = device === 'phone', H = fnv(im.f), UI = 44, b = boxFor(t, m);
+    let f = phone ? vh * .13 : vh * .38, c;
+    if (t.ny != null || t.nx != null) c = t.ny != null ? t.ny / 100 : (phone ? (b.top + b.h + f * .22) / vh : .5 + (((H >>> 8) % 100) / 100 - .5) * .36);
+    else if (!phone) c = (Math.min(Math.max((.5 + (((H >>> 8) % 100) / 100 - .5) * .36) * vh - f / 2, UI + 6), vh - UI - 6 - f) + f / 2) / vh;
+    else { const above = b.top - UI, below = vh - UI - (b.top + b.h); f = Math.max(1, Math.min(vh * .13, Math.max(above, below) * 1.2)); const tk = f * .28;
+      c = ((above >= below ? Math.max(UI, b.top - f + tk) : Math.min(b.top + b.h - tk, vh - UI - f)) + f / 2) / vh; }
+    return { f, c, vh };
   }
-  if (pad) {
-    const box = $('.pbox', pad), range = $('.sizer input', el), out = $('.sizer b', el);
-    let t = { ...L() };
-    const draw = () => {
-      const b = boxFor(t, m);
-      Object.assign(box.style, { left: b.left / b.vw * 100 + '%', top: b.top / b.vh * 100 + '%', width: b.w / b.vw * 100 + '%', height: b.h / b.vh * 100 + '%' });
-      out.textContent = range.value + '%';
-    };
-    draw();
-    let cx0, cy0;
-    drag(box, pad, () => { const b = boxFor(t, m); cx0 = (b.left + b.w / 2) / b.vw * 100; cy0 = (b.top + b.h / 2) / b.vh * 100; }, (dx, dy, W, H, ev) => {
-      let gx, gy;
-      [t.x, gx] = snap(Math.min(100, Math.max(0, cx0 + dx / W * 100)), ev);
-      [t.y, gy] = snap(Math.min(100, Math.max(0, cy0 + dy / H * 100)), ev);
-      draw(); guides(pad, gx, gy);
-      drawName?.();
-    }, () => edit(() => { const g = tgt(im); g.x = +t.x.toFixed(1); g.y = +t.y.toFixed(1); }));
-    range.oninput = () => { range.value = snapSize(+range.value); t.s = range.value / 100; draw(); drawName(); };
-    // her name: same placement maths as the site
-    const band = $('.pname', pad), run = $('.prun', pad), handle = $('.nhandle', pad);
-    let ny = t.ny, nx = t.nx;
-    const nameGeom = () => {
-      const [vw, vh] = SCREENS[device], b = boxFor(t, m), phone = device === 'phone', H = fnv(im.f), UI = 44;
-      let f = phone ? vh * .13 : vh * .38, c;
-      if (ny != null) c = ny / 100;
-      else if (!phone) c = (Math.min(Math.max((.5 + (((H >>> 8) % 100) / 100 - .5) * .36) * vh - f / 2, UI + 6), vh - UI - 6 - f) + f / 2) / vh;
-      else { const above = b.top - UI, below = vh - UI - (b.top + b.h); f = Math.min(vh * .13, Math.max(above, below) * 1.2); const tk = f * .28;
-        const y = above >= below ? Math.max(UI, b.top - f + tk) : Math.min(b.top + b.h - tk, vh - UI - f); c = (y + f / 2) / vh; if (ny == null && nx == null) f = Math.max(f, 1); }
-      return { f, c, b, vw, vh };
-    };
-    function drawName() {
-      if (!band) return;
-      const { f, c, vh } = nameGeom(), P = pad.clientHeight, fs = f / vh * P;
-      run.style.fontSize = fs + 'px';
-      const top = Math.min(Math.max(c * P - fs / 2, 0), P - fs);
-      Object.assign(band.style, { top: top + 'px', height: fs + 'px' });
-      handle.style.top = top + fs / 2 + 'px';
-      const H = fnv(im.f), sp = run.children[0].offsetWidth;
-      let x = nx;
-      if (x == null) {
-        if (device === 'phone') { const W = pad.clientWidth, tw = sp - fs * .35, j = (((H >>> 4) % 100) / 100 - .5) * W * .16; x = ((sp + tw / 2) - W / 2 - j) / (sp * 3) * 100; }
-        else x = (H % 3333) / 100;
-      }
-      run.style.transform = `translateX(${-x}%)`;
-      run.dataset.x = x;
+  function drawName() {
+    if (!band) return;
+    const { f, c, vh } = nameGeom(), P = pad.clientHeight, fs = f / vh * P;
+    run.style.fontSize = fs + 'px';
+    const top = Math.min(Math.max(c * P - fs / 2, 0), P - fs);
+    Object.assign(band.style, { top: top + 'px', height: fs + 'px' });
+    handle.style.top = top + fs / 2 + 'px';
+    const H = fnv(im.f), sp = run.children[0].offsetWidth;
+    let x = t.nx;
+    if (x == null) {
+      if (device === 'phone' && t.ny == null) { const W = pad.clientWidth, tw = sp - fs * .35, j = (((H >>> 4) % 100) / 100 - .5) * W * .16; x = ((sp + tw / 2) - W / 2 - j) / (sp * 3) * 100; }
+      else x = (H % 3333) / 100;
     }
-    drawName();
-    if (handle) {
-      let c0, x0;
-      drag(handle, pad, () => { c0 = nameGeom().c * 100; x0 = +run.dataset.x; }, (dx, dy, W, H, ev) => {
-        const { b, vw, vh } = nameGeom(), sp = run.children[0].offsetWidth;
-        let gy;
-        [ny, gy] = snap(Math.min(100, Math.max(0, c0 + dy / H * 100)), ev, [...LINES, b.top / vh * 100, (b.top + b.h) / vh * 100], 2);
-        nx = ((x0 - dx / (sp * 3) * 100) % (100 / 3) + 100 / 3) % (100 / 3);     // the line repeats, so it wraps
-        drawName(); guides(pad, null, gy);
-      }, () => edit(() => { const g = tgt(im); g.ny = +ny.toFixed(1); g.nx = +nx.toFixed(2); }));
-    }
-    const nr = $('.nreset', el); if (nr) nr.onclick = () => edit(() => { const g = tgt(im); delete g.ny; delete g.nx; });
-    range.onchange = () => edit(() => { tgt(im).s = +(range.value / 100).toFixed(2); });
-    $('.centre', el).onclick = () => edit(() => { const g = tgt(im); delete g.x; delete g.y; });
+    run.style.transform = `translateX(${-x}%)`; run.dataset.x = x;
   }
+  if (handle) {
+    let n0, x0;
+    drag(handle, pad, () => { n0 = nameGeom().c * 100; x0 = +run.dataset.x; }, (dx, dy, W, H, ev) => {
+      const sp = run.children[0].offsetWidth; let gy;
+      [t.ny, gy] = snap(Math.min(100, Math.max(0, n0 + dy / H * 100)), ev);
+      t.nx = ((x0 - dx / (sp * 3) * 100) % (100 / 3) + 100 / 3) % (100 / 3);    // the line repeats, so it wraps
+      drawName(); guides(pad, null, gy);
+    }, () => edit(() => { const g = tgt(im); g.ny = +t.ny.toFixed(1); g.nx = +t.nx.toFixed(2); }));
+  }
+  const nr = $('.nreset', el); if (nr) nr.onclick = () => edit(() => { const g = tgt(im); delete g.ny; delete g.nx; });
+  draw();
 }
 let snapOn = (() => { try { return localStorage.getItem('lm-snap') !== 'off'; } catch { return true; } })();
 const LINES = [100 / 3, 50, 200 / 3];
@@ -404,7 +356,7 @@ function snap(v, ev, targets = LINES, reach = 1.8) {
   for (const t of targets) if (Math.abs(v - t) <= reach) return [t, t];
   return [v, null];
 }
-function snapSize(v) { if (!snapOn) return v; for (const t of [100, 75, 50, 33]) if (Math.abs(v - t) <= 2) return t; return v; }
+function snapSize(v) { if (!snapOn) return v; for (const t of [200, 150, 100, 75, 50, 33]) if (Math.abs(v - t) <= 2) return t; return v; }
 function guides(pad, gx, gy) {
   let v = $('.gv', pad), h = $('.gh', pad);
   if (!v) { v = document.createElement('i'); v.className = 'gv'; h = document.createElement('i'); h.className = 'gh'; pad.append(v, h); }
@@ -431,7 +383,6 @@ function bindSlide(el, p) {
   $$('[data-ub]', el).forEach(b => b.onclick = () => { pickOpen = false; const u = bgMedia().find(x => x.f === b.dataset.ub); if (!u) return; edit(() => { const g = tgt(im); const { label, ...ub } = u; g.ub = ub; delete g.u; }); });
   const up = $('.upbg', el); if (up) up.onclick = () => { bgFor = im; $('.bgpick').click(); };
   const pk = $('.pickbg', el); if (pk) pk.onclick = () => { pickOpen = !pickOpen; renderPanel(); };
-  if (sel.length === 1) bindBgPad(el, p, im);
   const sw = $('.sw', el); if (sw) sw.onclick = () => edit(() => { tgt(im).n = !view(im).n; });
   const same = $('.same', el); if (same) same.onclick = () => edit(() => { delete im.ph; });
   if (sel.length === 1) bindPad(el, p, im);
@@ -445,7 +396,7 @@ function setLayout(im, m) {
   if (m === 'layer' && im.v) return;
   const g = tgt(im);
   g.m = m;
-  delete g.s; delete g.x; delete g.y; delete g.fp;          // a new layout starts from its own defaults
+  delete g.s; delete g.x; delete g.y; delete g.fp;          // a new layout starts from its own defaults (the name keeps its place)
   if (m === 'small' && device === 'desk') g.x = 64;
   if (m === 'layer') { if (!view(im).ub) { const u = ubOf(view(im)); if (u) g.ub = u; } } else { delete g.u; delete g.ub; delete g.bs; delete g.bx; delete g.by; delete g.bfp; }
   if (device === 'phone' && im.ph && Object.keys(im.ph).length === 1 && im.ph.m === im.m) delete im.ph;   // same as desktop again

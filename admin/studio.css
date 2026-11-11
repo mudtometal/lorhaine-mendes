@@ -221,3 +221,15 @@ dialog .token{width:100%;padding:8px 10px;border:1px solid var(--line);border-ra
 .prun span{padding-right:.35em}
 .nhandle{position:absolute;right:6px;transform:translateY(-50%);z-index:2;background:var(--ink);color:#fff;font-size:10px;padding:3px 7px;border-radius:99px;cursor:grab;touch-action:none}
 .nhandle:active{cursor:grabbing}
+
+/* one placement box for picture, background and name */
+.mini2{margin-bottom:8px}
+.mini2 button:disabled{opacity:.4;cursor:default}
+.pad{overflow:hidden}
+.pad .bbox{z-index:0;outline:1px solid transparent}
+.pad .pname{z-index:1}
+.pad .pbox{z-index:2}
+.pad .nhandle{z-index:4}
+.pad .pbox.act,.pad .bbox.act{outline:1.5px solid #2f6bff;outline-offset:-1.5px}
+.gv,.gh{z-index:5}
+.pad.bgsel .pbox{pointer-events:none;opacity:.45}
