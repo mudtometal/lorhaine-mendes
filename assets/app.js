@@ -126,6 +126,15 @@ function setName(it, mode, top, h, vw, vh, m) {
   bigname.classList.toggle('on', show);
   if (!show) return;
   const H = hash(it.f);
+  // placed by hand in the editor: ny = height of the line's centre (% of screen), nx = which slice shows
+  if (it.ny != null || it.nx != null) {
+    const f = m ? vh * .13 : vh * .38;
+    const c = it.ny != null ? it.ny / 100 : (m ? (top + h + f * .22) / vh : .5 + (((H >>> 8) % 100) / 100 - .5) * .36);
+    const y = Math.min(Math.max(c * vh - f / 2, 0), vh - f);
+    bigname.style.setProperty('--nf', f + 'px'); bigname.style.setProperty('--ny', y + 'px');
+    bigname.style.setProperty('--nx', -(it.nx ?? (H % 3333) / 100) + '%');
+    return;
+  }
   if (!m) {
     bigname.style.setProperty('--nx', -(H % 3333) / 100 + '%');          // slide the endless line
     const f = vh * .38, c = .5 + (((H >>> 8) % 100) / 100 - .5) * .36;    // near the middle, sometimes higher / lower
@@ -250,35 +259,28 @@ function renderCredits() {
 }
 
 function renderInfo() {
-  // one narrow column, almost nothing: a line about her, Instagram, then a two-line note and a quiet newsletter link
-  const L = layers.info;
+  // one narrow column: a line about her, then "Write something" (opens an email to her) and Instagram.
+  // The newsletter only shows once it is switched on in the editor and connected.
+  const L = layers.info, mail = data.email ? `mailto:${data.email}` : '';
   L.innerHTML = `<a class="home" href="#/">${esc(data.name)}</a><button class="close">Close</button>
     <div class="col">
       <p class="bio">${esc(data.bio)}</p>
-      <p>${data.instagram ? `<a href="https://instagram.com/${esc(data.instagram)}" target="_blank" rel="noopener">Instagram</a>` : '<span>Instagram</span>'}</p>
-      <form class="contact" novalidate>
-        <textarea name="message" rows="1" placeholder="Write something" aria-label="Message" required></textarea>
-        <div class="row"><input name="email" type="email" placeholder="Your email" aria-label="Email" required autocomplete="email"><button class="send" type="submit" hidden>Send</button></div>
-        <p class="note"></p>
-      </form>
-      <form class="news" novalidate><button type="button" class="nlink">Newsletter</button><input name="email" type="email" placeholder="Your email" aria-label="Newsletter email" required hidden><button class="join" type="submit" hidden>Join</button></form>
+      <p class="links">
+        ${mail ? `<a class="write" href="${esc(mail)}">Write something</a>` : ''}
+        ${data.instagram ? `<a href="https://instagram.com/${esc(data.instagram)}" target="_blank" rel="noopener">Instagram</a>` : ''}
+      </p>
+      ${data.newsletter ? `<form class="news" novalidate><button type="button" class="nlink">Newsletter</button><input name="email" type="email" placeholder="Your email" aria-label="Newsletter email" required hidden><button class="join" type="submit" hidden>Join</button></form>` : ''}
     </div>`;
   L.querySelector('.close').onclick = close;
-  const c = L.querySelector('.contact'), note = c.querySelector('.note'), send = c.querySelector('.send'), ta = c.querySelector('textarea');
-  const grow = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
-  c.addEventListener('input', () => { grow(); send.hidden = !c.checkValidity(); });
-  c.addEventListener('submit', async e => {
-    e.preventDefault(); if (!c.checkValidity()) return;
-    try { const r = await fetch('/api/contact', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(c))) });
-      if (!r.ok) throw 0; } catch {}
-    c.reset(); grow(); send.hidden = true; note.textContent = 'Thank you.';
-  });
-  const nf = L.querySelector('.news'), nl = nf.querySelector('.nlink'), ni = nf.querySelector('input'), nj = nf.querySelector('.join');
+  const nf = L.querySelector('.news'); if (!nf) return;
+  const nl = nf.querySelector('.nlink'), ni = nf.querySelector('input'), nj = nf.querySelector('.join');
   nl.onclick = () => { nl.hidden = true; ni.hidden = false; ni.focus(); };
   ni.addEventListener('input', () => { nj.hidden = !nf.checkValidity(); });
-  nf.addEventListener('submit', async e => { e.preventDefault(); if (!nf.checkValidity()) return;
-    try { await fetch('/api/subscribe', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(nf))) }); } catch {}
-    nf.innerHTML = '<p class="note">Thank you.</p>'; });
+  nf.addEventListener('submit', async e => {
+    e.preventDefault(); if (!nf.checkValidity()) return;
+    try { const r = await fetch(data.newsletter, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(nf))) }); if (!r.ok) throw 0; nf.innerHTML = '<p class="note">Thank you.</p>'; }
+    catch { nf.innerHTML = '<p class="note">That didn’t go through. Please try again later.</p>'; }
+  });
 }
 
 /* ---------- router ---------- */

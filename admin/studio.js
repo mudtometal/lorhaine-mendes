@@ -1,4 +1,4 @@
-/* Lorhaine Mendes · Editor
+/* Portfolio editor
    Works like a slideshow editor: pick a project on the left, see the real slide in the middle,
    reorder slides in the strip below, set how the selected slide shows on the right.
    Everything saves as a draft automatically; Publish puts it live.                           */
@@ -194,6 +194,7 @@ function renderPanel() {
 
 /* ---------- per-device settings ----------
    Desktop settings live on the slide; phone settings live in slide.ph when they differ. */
+const fnv = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const SCREENS = { desk: [1440, 900], phone: [390, 844] };
 const SIZE = { full: 1, small: .55, layer: .7 };
 const view = im => device === 'phone' && im.ph ? { ...im, ...im.ph } : im;      // what this device shows
@@ -247,7 +248,7 @@ function slideHTML(p) {
       ${pickOpen ? `<div class="unders">${bgMedia().filter(u => u.f !== im.f).map(u => `<button data-ub="${u.f}" class="${ub?.f === u.f ? 'on' : ''}" title="${esc(u.label)}${u.v ? ' · video' : ''}"><img src="${ubThumb(u)}" alt="">${u.v ? '<span class="v">Video</span>' : ''}</button>`).join('')}</div>` : ''}
       <p class="help">Upload a new photo or video, or pick one from the site. It only shows behind this slide.</p></div>
       ${ub ? bgPadHTML(p, im, L, ub) : ''}` : ''}
-    ${!many ? `<div class="sec"><button class="sw ${L.n && nameOk(m) ? 'on' : ''}" ${nameOk(m) ? '' : 'disabled'}><i></i>Show “Lorhaine Mendes” behind the picture</button><p class="help">${nameOk(m) ? 'Her name in big letters behind the picture. Looks best on a few slides only.' : 'Only with Large or Small. The other layouts would cover it.'}</p></div>` : ''}
+    ${!many ? `<div class="sec"><button class="sw ${L.n && nameOk(m) ? 'on' : ''}" ${nameOk(m) ? '' : 'disabled'}><i></i>Name in the background</button><p class="help">${nameOk(m) ? '“Lorhaine Mendes” in large type behind the picture. Move it in the box above. Looks best on a few slides only.' : 'Only with Large or Small. The other layouts would cover it.'}</p></div>` : ''}
     <div class="sec"><button class="danger del">${many ? `Delete ${sel.length} slides` : 'Delete slide'}</button></div>`;
 }
 // the placement pad: a little screen you drag the picture around in, plus a size slider.
@@ -257,19 +258,20 @@ function padHTML(p, im, L, m) {
   if (m === 'cover') {
     return `<div class="sec"><span class="lab">What stays in view</span>
       <div class="crop" style="aspect-ratio:${im.w}/${im.h}"><img src="${thumb(p, im)}" alt="" draggable="false"><div class="win"></div></div>
-      <p class="help">The screen crops the picture. Drag the frame to choose what shows.</p></div>`;
+      <p class="help">The screen crops the picture. Drag the frame to choose what shows. ${snapLink()}</p></div>`;
   }
   return `<div class="sec"><span class="lab">${m === 'layer' ? 'Picture on top: size and position' : 'Size and position'}</span>
-    <div class="pad ${device}" style="aspect-ratio:${vw}/${vh}"><div class="pbox"><img src="${thumb(p, im)}" alt="" draggable="false"></div></div>
+    <div class="pad ${device}" style="aspect-ratio:${vw}/${vh}">${L.n && nameOk(m) ? '<div class="pname"><div class="prun"><span>Lorhaine Mendes</span><span>Lorhaine Mendes</span><span>Lorhaine Mendes</span></div></div><button class="nhandle" title="Drag to move the name">Name</button>' : ''}<div class="pbox"><img src="${thumb(p, im)}" alt="" draggable="false"></div></div>
     <div class="sizer"><span>Size</span><input type="range" min="20" max="100" step="1" value="${Math.round((L.s ?? SIZE[m] ?? 1) * 100)}"><b></b></div>
-    <p class="help">Drag the picture to place it. <button class="link centre">Centre it</button></p></div>`;
+    <p class="help">Drag the picture to place it. It snaps to the centre and thirds. <button class="link centre">Centre it</button> · ${snapLink()}</p>
+    ${L.n && nameOk(m) ? `<p class="help">Drag <b>Name</b> to move her name up, down or sideways. It snaps to the picture’s edges. ${L.ny != null || L.nx != null ? '<button class="link nreset">Reset name</button>' : ''}</p>` : ''}</div>`;
 }
 function bgPadHTML(p, im, L, ub) {
   const [vw, vh] = SCREENS[device], s = Math.round((L.bs ?? 1) * 100);
   return `<div class="sec"><span class="lab">Background: size and position</span>
     <div class="pad bgpad ${device}" style="aspect-ratio:${vw}/${vh}"><div class="bbox"><img src="${ubThumb(ub)}" alt="" draggable="false"></div><div class="fbox"></div></div>
     <div class="sizer"><span>Size</span><input class="bsize" type="range" min="20" max="100" step="1" value="${s}"><b></b></div>
-    <p class="help bnote"></p></div>`;
+    <p class="help"><span class="bnote"></span> ${snapLink()}</p></div>`;
 }
 function bindBgPad(el, p, im) {
   const pad = $('.bgpad', el); if (!pad) return;
@@ -292,21 +294,25 @@ function bindBgPad(el, p, im) {
     }
   };
   draw();
-  drag(box, pad, (dx, dy, W, H) => {
+  let s0;
+  drag(box, pad, () => {
+    const b = boxFor({ w: ub.w, h: ub.h, s: t.bs, x: t.bx, y: t.by }, 'full');
+    s0 = { fp: t.bfp.split(' ').map(parseFloat), cx: (b.left + b.w / 2) / vw * 100, cy: (b.top + b.h / 2) / vh * 100 };
+  }, (dx, dy, W, H, ev) => {
+    let gx = null, gy = null;
     if (t.bs >= .999) {                                  // full: move what stays in view
       const r = ub.w / ub.h, sr = vw / vh, fw = r > sr ? sr / r : 1, fh = r > sr ? 1 : r / sr;
-      let [px, py] = t.bfp.split(' ').map(parseFloat);
-      if (fw < 1) px = Math.min(100, Math.max(0, px - dx / W * 100 / (1 / fw - 1)));
-      if (fh < 1) py = Math.min(100, Math.max(0, py - dy / H * 100 / (1 / fh - 1)));
+      let [px, py] = s0.fp;
+      if (fw < 1) [px] = snap(Math.min(100, Math.max(0, px - dx / W * 100 / (1 / fw - 1))), ev, [0, 50, 100], 3);
+      if (fh < 1) [py] = snap(Math.min(100, Math.max(0, py - dy / H * 100 / (1 / fh - 1))), ev, [0, 50, 100], 3);
       t.bfp = `${Math.round(px)}% ${Math.round(py)}%`;
     } else {
-      const b = boxFor({ w: ub.w, h: ub.h, s: t.bs, x: t.bx, y: t.by }, 'full');
-      t.bx = Math.min(100, Math.max(0, (b.left + b.w / 2) / vw * 100 + dx / W * 100));
-      t.by = Math.min(100, Math.max(0, (b.top + b.h / 2) / vh * 100 + dy / H * 100));
+      [t.bx, gx] = snap(Math.min(100, Math.max(0, s0.cx + dx / W * 100)), ev);
+      [t.by, gy] = snap(Math.min(100, Math.max(0, s0.cy + dy / H * 100)), ev);
     }
-    draw();
-  }, () => edit(() => { const g = tgt(im); if (t.bs >= .999) g.bfp = t.bfp; else { g.bx = Math.round(t.bx); g.by = Math.round(t.by); } }));
-  range.oninput = () => { t.bs = range.value / 100; draw(); };
+    draw(); guides(pad, gx, gy);
+  }, () => edit(() => { const g = tgt(im); if (t.bs >= .999) g.bfp = t.bfp; else { g.bx = +t.bx.toFixed(1); g.by = +t.by.toFixed(1); } }));
+  range.oninput = () => { range.value = snapSize(+range.value); t.bs = range.value / 100; draw(); };
   range.onchange = () => edit(() => { const g = tgt(im); g.bs = +(range.value / 100).toFixed(2); if (g.bs >= .999) { delete g.bs; delete g.bx; delete g.by; } });
 }
 function bindPad(el, p, im) {
@@ -319,10 +325,13 @@ function bindPad(el, p, im) {
     let [px, py] = (L().fp || '50% 50%').split(' ').map(parseFloat);
     const draw = () => Object.assign(win.style, { width: fw * 100 + '%', height: fh * 100 + '%', left: (1 - fw) * px + '%', top: (1 - fh) * py + '%' });
     draw();
-    drag(win, crop, (dx, dy, W, H) => {
-      if (fw < 1) px = Math.min(100, Math.max(0, px + dx / ((1 - fw) * W) * 100));
-      if (fh < 1) py = Math.min(100, Math.max(0, py + dy / ((1 - fh) * H) * 100));
+    let sx, sy;
+    drag(win, crop, () => { sx = px; sy = py; }, (dx, dy, W, H, ev) => {
+      let gx = null, gy = null;
+      if (fw < 1) [px, gx] = snap(Math.min(100, Math.max(0, sx + dx / ((1 - fw) * W) * 100)), ev, [0, 50, 100], 3);
+      if (fh < 1) [py, gy] = snap(Math.min(100, Math.max(0, sy + dy / ((1 - fh) * H) * 100)), ev, [0, 50, 100], 3);
       draw();
+      guides(crop, gx == null ? null : (1 - fw) * gx + fw * 50, gy == null ? null : (1 - fh) * gy + fh * 50);
     }, () => edit(() => { tgt(im).fp = `${Math.round(px)}% ${Math.round(py)}%`; }));
   }
   if (pad) {
@@ -334,23 +343,85 @@ function bindPad(el, p, im) {
       out.textContent = range.value + '%';
     };
     draw();
-    drag(box, pad, (dx, dy, W, H) => {
-      const b = boxFor(t, m);
-      t.x = Math.min(100, Math.max(0, (b.left + b.w / 2) / b.vw * 100 + dx / W * 100));
-      t.y = Math.min(100, Math.max(0, (b.top + b.h / 2) / b.vh * 100 + dy / H * 100));
-      draw();
-    }, () => edit(() => { const g = tgt(im); g.x = Math.round(t.x); g.y = Math.round(t.y); }));
-    range.oninput = () => { t.s = range.value / 100; draw(); };
+    let cx0, cy0;
+    drag(box, pad, () => { const b = boxFor(t, m); cx0 = (b.left + b.w / 2) / b.vw * 100; cy0 = (b.top + b.h / 2) / b.vh * 100; }, (dx, dy, W, H, ev) => {
+      let gx, gy;
+      [t.x, gx] = snap(Math.min(100, Math.max(0, cx0 + dx / W * 100)), ev);
+      [t.y, gy] = snap(Math.min(100, Math.max(0, cy0 + dy / H * 100)), ev);
+      draw(); guides(pad, gx, gy);
+      drawName?.();
+    }, () => edit(() => { const g = tgt(im); g.x = +t.x.toFixed(1); g.y = +t.y.toFixed(1); }));
+    range.oninput = () => { range.value = snapSize(+range.value); t.s = range.value / 100; draw(); drawName(); };
+    // her name: same placement maths as the site
+    const band = $('.pname', pad), run = $('.prun', pad), handle = $('.nhandle', pad);
+    let ny = t.ny, nx = t.nx;
+    const nameGeom = () => {
+      const [vw, vh] = SCREENS[device], b = boxFor(t, m), phone = device === 'phone', H = fnv(im.f), UI = 44;
+      let f = phone ? vh * .13 : vh * .38, c;
+      if (ny != null) c = ny / 100;
+      else if (!phone) c = (Math.min(Math.max((.5 + (((H >>> 8) % 100) / 100 - .5) * .36) * vh - f / 2, UI + 6), vh - UI - 6 - f) + f / 2) / vh;
+      else { const above = b.top - UI, below = vh - UI - (b.top + b.h); f = Math.min(vh * .13, Math.max(above, below) * 1.2); const tk = f * .28;
+        const y = above >= below ? Math.max(UI, b.top - f + tk) : Math.min(b.top + b.h - tk, vh - UI - f); c = (y + f / 2) / vh; if (ny == null && nx == null) f = Math.max(f, 1); }
+      return { f, c, b, vw, vh };
+    };
+    function drawName() {
+      if (!band) return;
+      const { f, c, vh } = nameGeom(), P = pad.clientHeight, fs = f / vh * P;
+      run.style.fontSize = fs + 'px';
+      const top = Math.min(Math.max(c * P - fs / 2, 0), P - fs);
+      Object.assign(band.style, { top: top + 'px', height: fs + 'px' });
+      handle.style.top = top + fs / 2 + 'px';
+      const H = fnv(im.f), sp = run.children[0].offsetWidth;
+      let x = nx;
+      if (x == null) {
+        if (device === 'phone') { const W = pad.clientWidth, tw = sp - fs * .35, j = (((H >>> 4) % 100) / 100 - .5) * W * .16; x = ((sp + tw / 2) - W / 2 - j) / (sp * 3) * 100; }
+        else x = (H % 3333) / 100;
+      }
+      run.style.transform = `translateX(${-x}%)`;
+      run.dataset.x = x;
+    }
+    drawName();
+    if (handle) {
+      let c0, x0;
+      drag(handle, pad, () => { c0 = nameGeom().c * 100; x0 = +run.dataset.x; }, (dx, dy, W, H, ev) => {
+        const { b, vw, vh } = nameGeom(), sp = run.children[0].offsetWidth;
+        let gy;
+        [ny, gy] = snap(Math.min(100, Math.max(0, c0 + dy / H * 100)), ev, [...LINES, b.top / vh * 100, (b.top + b.h) / vh * 100], 2);
+        nx = ((x0 - dx / (sp * 3) * 100) % (100 / 3) + 100 / 3) % (100 / 3);     // the line repeats, so it wraps
+        drawName(); guides(pad, null, gy);
+      }, () => edit(() => { const g = tgt(im); g.ny = +ny.toFixed(1); g.nx = +nx.toFixed(2); }));
+    }
+    const nr = $('.nreset', el); if (nr) nr.onclick = () => edit(() => { const g = tgt(im); delete g.ny; delete g.nx; });
     range.onchange = () => edit(() => { tgt(im).s = +(range.value / 100).toFixed(2); });
     $('.centre', el).onclick = () => edit(() => { const g = tgt(im); delete g.x; delete g.y; });
   }
 }
-function drag(handle, area, move, done) {
+let snapOn = (() => { try { return localStorage.getItem('lm-snap') !== 'off'; } catch { return true; } })();
+const LINES = [100 / 3, 50, 200 / 3];
+// returns [value, line it snapped to or null]
+function snap(v, ev, targets = LINES, reach = 1.8) {
+  if (!snapOn || ev?.altKey) return [v, null];
+  for (const t of targets) if (Math.abs(v - t) <= reach) return [t, t];
+  return [v, null];
+}
+function snapSize(v) { if (!snapOn) return v; for (const t of [100, 75, 50, 33]) if (Math.abs(v - t) <= 2) return t; return v; }
+function guides(pad, gx, gy) {
+  let v = $('.gv', pad), h = $('.gh', pad);
+  if (!v) { v = document.createElement('i'); v.className = 'gv'; h = document.createElement('i'); h.className = 'gh'; pad.append(v, h); }
+  v.hidden = gx == null; h.hidden = gy == null;
+  if (gx != null) v.style.left = gx + '%';
+  if (gy != null) h.style.top = gy + '%';
+}
+const snapLink = () => `<button class="link snapt">${snapOn ? 'Snapping on' : 'Snapping off'}</button>`;
+function bindSnapLinks(el) { $$('.snapt', el).forEach(b => b.onclick = () => { snapOn = !snapOn; try { localStorage.setItem('lm-snap', snapOn ? 'on' : 'off'); } catch {} renderPanel(); }); }
+// drag: move(totalDx, totalDy, areaW, areaH, event) — totals from where the drag started
+function drag(handle, area, start, move, done) {
   handle.onpointerdown = e => {
-    e.preventDefault(); handle.setPointerCapture(e.pointerId);
-    let lx = e.clientX, ly = e.clientY; const R = area.getBoundingClientRect();
-    handle.onpointermove = ev => { move(ev.clientX - lx, ev.clientY - ly, R.width, R.height); lx = ev.clientX; ly = ev.clientY; };
-    handle.onpointerup = () => { handle.onpointermove = handle.onpointerup = null; done(); };
+    e.preventDefault(); handle.setPointerCapture(e.pointerId); start();
+    const x0 = e.clientX, y0 = e.clientY, R = area.getBoundingClientRect();
+    area.classList.add('dragging');
+    handle.onpointermove = ev => move(ev.clientX - x0, ev.clientY - y0, R.width, R.height, ev);
+    handle.onpointerup = () => { handle.onpointermove = handle.onpointerup = null; area.classList.remove('dragging'); guides(area, null, null); done(); };
   };
 }
 function bindSlide(el, p) {
@@ -364,6 +435,7 @@ function bindSlide(el, p) {
   const sw = $('.sw', el); if (sw) sw.onclick = () => edit(() => { tgt(im).n = !view(im).n; });
   const same = $('.same', el); if (same) same.onclick = () => edit(() => { delete im.ph; });
   if (sel.length === 1) bindPad(el, p, im);
+  bindSnapLinks(el);
   $('.del', el).onclick = () => {
     edit(() => { sel.sort((a, b) => b - a).forEach(k => p.images.splice(k, 1)); V.k = Math.max(0, Math.min(Math.min(...sel), p.images.length - 1)); multi.clear(); });
     toast(sel.length > 1 ? 'Slides deleted' : 'Slide deleted', true);
@@ -413,9 +485,11 @@ function panelInfo(el) {
   el.innerHTML = `
     <div class="ph"><b>Info page</b></div>
     <div class="field"><span class="lab">Bio</span><textarea class="in bio" rows="4">${esc(D.bio)}</textarea></div>
-    <div class="field"><span class="lab">Instagram</span><input class="in ig" value="${esc(D.instagram)}" placeholder="username, without @"></div>`;
-  const b = $('.bio', el), i = $('.ig', el);
-  b.onfocus = i.onfocus = () => snapshot();
+    <div class="field"><span class="lab">Email</span><input class="in em" type="email" value="${esc(D.email)}" placeholder="name@example.com"><p class="help">“Write something” on the Info page opens an email to this address.</p></div>
+    <div class="field"><span class="lab">Instagram</span><input class="in ig" value="${esc(D.instagram)}" placeholder="username, without @"><p class="help">Leave empty to hide the Instagram link.</p></div>`;
+  const b = $('.bio', el), i = $('.ig', el), em = $('.em', el);
+  b.onfocus = i.onfocus = em.onfocus = () => snapshot();
+  em.oninput = () => { D.email = em.value.trim(); saved(); };
   b.oninput = () => { D.bio = b.value; saved(); };
   i.oninput = () => { D.instagram = i.value.replace(/^@/, '').trim(); saved(); };
 }
