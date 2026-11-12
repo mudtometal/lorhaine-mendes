@@ -13,6 +13,14 @@ const LAYOUTS = {
   small: ['Small', 'Smaller, off-centre'],
   layer: ['Layered', 'On top of a photo or video'],
 };
+const SAMPLE = {
+  rows: [['Director & Stylist', 'Taylor Thoroski'], ['Director of Photography', 'Zoe Que'], ['Hair Stylist', 'Sebastien Richard'], ['Make Up Artist', 'Cécile Paravina'],
+    ['Manicurist', 'Melvyn Renaud'], ['Talent', 'Ana Elisa Brito'], ['Talent', 'Avishag Amir'], ['Talent', 'Kethia Ngeleza'], ['"Mouthy Jam"', 'Canje'],
+    ['Casting', 'Calvin Wilson w/ The Establishement'], ['Video Editors', 'Zoe Que & Dora Abreu'], ['Producer', 'Ella Tyson'], ['Grade House', 'Doma'],
+    ['Colourist', 'Thomas Kumeling & Doma'], ['Post EP', 'Jake Evans'], ['Artwork', 'Valentin Van Der Meulen & Fabien Montique'], ['Camera Assistant', 'Ella Delormas'],
+    ['Stylist Assistant', 'Gaia De Rosa'], ['Make Up Assistant', 'Toma Marandeau'], ['Light Assistant', 'Elena Santolaya']].map(([role, name]) => ({ role, name })),
+  notes: "The designer the model the photographer\nby Miguel Adrover\n\nPortraits by Martin Sabyno\n\nZaza' Art\nwww.z-a-z-a.art\n\nShe's on fa-yeh\nby Brianna Capozi\n\nAnalisa Teachworth Zero\nThe Gaylord Fine Arts, Los Angeles\n\nWomen's History Museum Vintage\n244 Canal Street 3rd Fl, New York"
+};
 const CREDITS = { strip: ['Strip', 'Pictures in one row, scroll sideways'], stack: ['Stack', 'Credits left, pictures down the right'], grid: ['Grid', 'Credits on top, two columns'] };
 const modeOf = im => im.m === 'frame' ? 'full' : LAYOUTS[im.m] ? im.m : 'full';
 const nameOk = m => m === 'full' || m === 'small' || m === 'layer';
@@ -426,8 +434,8 @@ function projectHTML(p) {
       <p class="help">The preview shows this project’s credits page while you edit.</p>
     </div>
     <div class="sec"><span class="lab">Extra lines <em class="help" style="font-style:normal">(optional)</em></span>
-      <textarea class="in" data-k="notes" rows="3" placeholder="e.g. Portraits by …&#10;Location, city">${esc(p.notes)}</textarea>
-      <p class="help">One per line. Shown under the credits, in the typewriter font when that style is on.</p></div>
+      <textarea class="in" data-k="notes" rows="8" placeholder="e.g. Portraits by …&#10;Location, city">${esc(p.notes)}</textarea>
+      <p class="help">Shown next to the credits, in the typewriter font when that style is on. Leave an empty line between groups.</p></div>
     <div class="sec"><button class="danger delp">Delete project</button></div>`;
 }
 function bindProject(el, p) {
@@ -483,7 +491,20 @@ function panelCreditsPage(el) {
         <button class="lay ${D.creditsType === 'dual' ? 'on' : ''}" data-ct="dual"><div class="tstyle s2"><i>STYLING</i><b>Lorhaine Mendes</b><u>NOTES</u></div><b>Bold + typewriter</b><span class="d">Bold table, typewriter notes</span></button>
       </div></div>`;
   $$('[data-cl]', el).forEach(b => b.onclick = () => edit(() => { D.creditsLayout = b.dataset.cl; }));
-  $$('[data-ct]', el).forEach(b => b.onclick = () => edit(() => { if (b.dataset.ct === 'dual') D.creditsType = 'dual'; else delete D.creditsType; }));
+  $$('[data-ct]', el).forEach(b => b.onclick = () => {
+    const dual = b.dataset.ct === 'dual';
+    let filled = 0;
+    edit(() => {
+      if (!dual) return delete D.creditsType;
+      D.creditsType = 'dual';
+      // projects whose credits aren't written yet get the reference copy, ready to edit
+      D.projects.forEach(p => {
+        const unwritten = !String(p.notes || '').trim() && (p.credits || []).every(c => !c.name || /^tbc$/i.test(c.name.trim()) || c.name.trim() === (D.name || '').trim());
+        if (unwritten) { p.credits = SAMPLE.rows.map(r => ({ ...r })); p.notes = SAMPLE.notes; filled++; }
+      });
+    });
+    if (filled) toast(`Sample credits added to ${filled} project${filled > 1 ? 's' : ''}. Edit them under Project & credits.`, true);
+  });
 }
 $$('.pg').forEach(b => b.onclick = () => { V.page = b.dataset.page; multi.clear(); render(); go(); });
 

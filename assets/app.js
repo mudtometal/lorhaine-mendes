@@ -253,15 +253,6 @@ document.querySelectorAll('[data-go="credits"]').forEach(b => b.addEventListener
 
 /* ---------- credits: white, big pictures; layout chosen in the website editor ---------- */
 const CL = { strip: 'Strip', stack: 'Stack', grid: 'Grid' };
-const SAMPLE = {
-  rows: [['Director & Stylist', 'Taylor Thoroski'], ['Director of Photography', 'Zoe Que'], ['Hair Stylist', 'Sebastien Richard'], ['Make Up Artist', 'Cécile Paravina'],
-    ['Manicurist', 'Melvyn Renaud'], ['Talent', 'Ana Elisa Brito'], ['Talent', 'Avishag Amir'], ['Talent', 'Kethia Ngeleza'], ['"Mouthy Jam"', 'Canje'],
-    ['Casting', 'Calvin Wilson w/ The Establishement'], ['Video Editors', 'Zoe Que & Dora Abreu'], ['Producer', 'Ella Tyson'], ['Grade House', 'Doma'],
-    ['Colourist', 'Thomas Kumeling & Doma'], ['Post EP', 'Jake Evans'], ['Artwork', 'Valentin Van Der Meulen & Fabien Montique'], ['Camera Assistant', 'Ella Delormas'],
-    ['Stylist Assistant', 'Gaia De Rosa'], ['Make Up Assistant', 'Toma Marandeau'], ['Light Assistant', 'Elena Santolaya']].map(([role, name]) => ({ role, name })),
-  notes: ['The designer the model the photographer\nby Miguel Adrover', 'Portraits by Martin Sabyno', "Zaza' Art\nwww.z-a-z-a.art",
-    "She's on fa-yeh\nby Brianna Capozi", 'Analisa Teachworth Zero\nThe Gaylord Fine Arts, Los Angeles', "Women's History Museum Vintage\n244 Canal Street 3rd Fl, New York"]
-};
 const creditsLayout = (DRAFT && qs.get('credits') in CL && qs.get('credits')) || (data.creditsLayout in CL ? data.creditsLayout : 'strip');
 function renderCredits() {
   const cur = FLOW[Math.max(g, 0)], p = cur.p, L = layers.credits;
@@ -271,10 +262,8 @@ function renderCredits() {
     ? `<video src="${vsrc(im.f)}" poster="${vposter(im.f)}" data-k="${k}" muted loop playsinline autoplay></video>`
     : `<img src="${src(p.slug, im.f, creditsLayout === 'strip' || !mobile() ? (hi() ? 'web' : 'md') : 'md')}" data-k="${k}" alt="${esc(p.title)}" style="aspect-ratio:${im.w}/${im.h}">`).join('');
   let rows = (p.credits || []).filter(c => c.role || c.name);
-  let notes = String(p.notes || '').split('\n').map(x => x.trim()).filter(Boolean);
-  // Bold + typewriter style: until real credits are written (only the starter "TBC" lines), show the reference copy
-  const unwritten = !notes.length && rows.every(c => !c.name || /^tbc$/i.test(c.name.trim()) || c.name.trim() === (data.name || '').trim());
-  if (dual && unwritten) { rows = SAMPLE.rows; notes = SAMPLE.notes; }
+  let notes = String(p.notes || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
+
   const meta = dual
     ? `<div class="meta"><dl>${rows.map(c => `<dt>${esc(c.role)}</dt><dd>${esc(c.name)}</dd>`).join('')}</dl>
         <div class="mono"><p>${esc(p.title)}</p>${[p.client, p.year].filter(Boolean).length ? `<p>${esc([p.client, p.year].filter(Boolean).join(', '))}</p>` : ''}${notes.map(n => `<p>${esc(n).replace(/\n/g, '<br>')}</p>`).join('')}</div></div>`
