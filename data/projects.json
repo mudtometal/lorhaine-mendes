@@ -26,7 +26,11 @@
      "w": 2400,
      "h": 2400,
      "m": "full",
-     "n": true
+     "n": true,
+     "ph": {
+      "x": 50,
+      "y": 39
+     }
     },
     {
      "f": "safe-02",
@@ -366,5 +370,9 @@
    ]
   }
  ],
- "creditsLayout": "strip"
+ "creditsLayout": "strip",
+ "head": {
+  "size": 39
+ },
+ "creditsType": "dual"
 }
