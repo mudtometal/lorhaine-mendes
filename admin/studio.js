@@ -23,6 +23,15 @@ let published = await fetch('../data/projects.json', { cache: 'no-cache' }).then
 let D = structuredClone(published);
 try { const s = JSON.parse(localStorage.getItem('lm-studio') || 'null'); if (s && s.base === JSON.stringify(published)) D = s.data; } catch {}
 const pending = {};
+// one-time setup link: …/admin/#key=XXXX saves the publishing key in this browser, then the key is wiped from the address
+function takeKey() {
+  const k = location.hash.match(/(?:^#|&)key=([^&]+)/);
+  if (!k) return;
+  try { localStorage.setItem('lm-gh-token', decodeURIComponent(k[1])); } catch {}
+  window.history.replaceState(null, "", location.pathname + location.search);
+  setTimeout(() => toast('Publishing is set up on this computer'), 400);
+}
+takeKey(); addEventListener('hashchange', takeKey);
 const clean = d => JSON.parse(JSON.stringify(d, (k, v) => k.startsWith('_') ? undefined : v));
 const thumb = (p, im, size = 'md') => im.v ? (pending[im.f]?.poster || `../media/video/${im.f}.jpg`) : (pending[im.f]?.[size] || `../media/${size}/${p.slug}/${im.f}.webp`);
 const allItems = () => D.projects.flatMap((p, pi) => p.images.map((im, k) => ({ p, pi, k, im })));
@@ -252,7 +261,7 @@ function slideHTML(p) {
       ${pickOpen ? `<div class="unders">${bgMedia().filter(u => u.f !== im.f).map(u => `<button data-ub="${u.f}" class="${ub?.f === u.f ? 'on' : ''}" title="${esc(u.label)}${u.v ? ' · video' : ''}"><img src="${ubThumb(u)}" alt="">${u.v ? '<span class="v">Video</span>' : ''}</button>`).join('')}</div>` : ''}
       <p class="help">Upload a new photo or video, or pick one from the site. It only shows behind this slide.</p></div>
 ` : ''}
-    ${!many ? `<div class="sec"><button class="sw ${L.n && nameOk(m) ? 'on' : ''}" ${nameOk(m) ? '' : 'disabled'}><i></i>Name in the background</button><p class="help">${nameOk(m) ? '“Lorhaine Mendes” in large type behind the picture. Move it in the box above. Looks best on a few slides only.' : 'Not with Full screen. The picture would cover it.'}</p></div>` : ''}
+    ${!many ? `<div class="sec"><button class="sw ${L.n && nameOk(m) ? 'on' : ''}" ${nameOk(m) ? '' : 'disabled'}><i></i>Name in the background</button><p class="help">${nameOk(m) ? `“${esc(D.backText || D.name || 'Lorhaine Mendes')}” in large type behind the picture. Move it in the box above. Looks best on a few slides only.` : 'Not with Full screen. The picture would cover it.'}</p></div>` : ''}
     <div class="sec"><button class="danger del">${many ? `Delete ${sel.length} slides` : 'Delete slide'}</button></div>`;
 }
 /* ---------- the placement box ----------
@@ -268,7 +277,7 @@ function padHTML(p, im, L, m) {
     ${m === 'layer' ? `<div class="seg mini2"><button data-ls="pic" class="${selBg ? '' : 'on'}">Picture</button><button data-ls="bg" class="${selBg ? 'on' : ''}" ${ub ? '' : 'disabled'}>Background</button></div>` : ''}
     <div class="pad ${device} ${selBg ? 'bgsel' : ''}" style="aspect-ratio:${vw}/${vh}">
       ${ub ? `<div class="bbox ${selBg ? 'act' : ''}"><img src="${ubThumb(ub)}" alt="" draggable="false"></div>` : ''}
-      ${name ? '<div class="pname"><div class="prun"><span>Lorhaine Mendes</span><span>Lorhaine Mendes</span><span>Lorhaine Mendes</span></div></div><button class="nhandle" title="Drag to move the name">Name</button>' : ''}
+      ${name ? `<div class="pname"><div class="prun">${`<span>${esc(D.backText || D.name || 'Lorhaine Mendes')}</span>`.repeat(3)}</div></div><button class="nhandle" title="Drag to move the name">Name</button>` : ''}
       <div class="pbox ${selBg ? '' : 'act'}"><img src="${thumb(p, im)}" alt="" draggable="false"></div>
     </div>
     <div class="sizer"><span>Size</span><input type="range" min="${m === 'cover' && !selBg ? 100 : 20}" max="200" step="1" value="${sz}"><b></b></div>
@@ -416,6 +425,9 @@ function projectHTML(p) {
       <button class="addc">+ Add credit</button>
       <p class="help">The preview shows this project’s credits page while you edit.</p>
     </div>
+    <div class="sec"><span class="lab">Extra lines <em class="help" style="font-style:normal">(optional)</em></span>
+      <textarea class="in" data-k="notes" rows="3" placeholder="e.g. Portraits by …&#10;Location, city">${esc(p.notes)}</textarea>
+      <p class="help">One per line. Shown under the credits, in the typewriter font when that style is on.</p></div>
     <div class="sec"><button class="danger delp">Delete project</button></div>`;
 }
 function bindProject(el, p) {
@@ -434,12 +446,26 @@ function bindProject(el, p) {
 
 function panelInfo(el) {
   el.innerHTML = `
-    <div class="ph"><b>Info page</b></div>
+    <div class="ph"><b>Site</b></div>
+    <div class="field"><span class="lab">Name in the top corner</span><input class="in sn" value="${esc(D.name)}" placeholder="Lorhaine Mendes"></div>
+    <div class="field"><span class="lab">Name style</span>
+      <div class="seg hfont"><button data-hf="sans" class="${(D.head?.font || 'sans') === 'sans' ? 'on' : ''}">Simple</button><button data-hf="serif" class="${D.head?.font === 'serif' ? 'on' : ''}" style="font-family:'Bodoni Moda',serif">Bodoni</button></div>
+      <button class="sw hbold ${D.head?.bold ? 'on' : ''}" style="margin-top:10px"><i></i>Bold</button>
+      <div class="sizer"><span>Size</span><input class="hsize" type="range" min="13" max="44" step="1" value="${D.head?.size || 15}"><b>${D.head?.size || 15}px</b></div></div>
+    <div class="field"><span class="lab">Big text behind pictures</span><input class="in bt" value="${esc(D.backText || '')}" placeholder="${esc(D.name || 'Lorhaine Mendes')}"><p class="help">Leave empty to use the name above.</p></div>
+    <div class="ph" style="margin-top:22px"><b>Info page</b></div>
     <div class="field"><span class="lab">Bio</span><textarea class="in bio" rows="4">${esc(D.bio)}</textarea></div>
     <div class="field"><span class="lab">Email</span><input class="in em" type="email" value="${esc(D.email)}" placeholder="name@example.com"><p class="help">“Write something” on the Info page opens an email to this address.</p></div>
     <div class="field"><span class="lab">Instagram</span><input class="in ig" value="${esc(D.instagram)}" placeholder="username, without @"><p class="help">Leave empty to hide the Instagram link.</p></div>`;
-  const b = $('.bio', el), i = $('.ig', el), em = $('.em', el);
-  b.onfocus = i.onfocus = em.onfocus = () => snapshot();
+  const b = $('.bio', el), i = $('.ig', el), em = $('.em', el), sn = $('.sn', el), bt = $('.bt', el);
+  b.onfocus = i.onfocus = em.onfocus = sn.onfocus = bt.onfocus = () => snapshot();
+  const head = () => (D.head ||= {});
+  $$('[data-hf]', el).forEach(b => b.onclick = () => edit(() => { if (b.dataset.hf === 'serif') head().font = 'serif'; else delete head().font; }));
+  $('.hbold', el).onclick = () => edit(() => { head().bold = !D.head?.bold; if (!head().bold) delete head().bold; });
+  const hs = $('.hsize', el); hs.oninput = () => { hs.nextElementSibling.textContent = hs.value + 'px'; };
+  hs.onchange = () => edit(() => { if (+hs.value === 15) delete head().size; else head().size = +hs.value; });
+  sn.oninput = () => { D.name = sn.value; bt.placeholder = sn.value || 'Lorhaine Mendes'; saved(); };
+  bt.oninput = () => { if (bt.value.trim()) D.backText = bt.value; else delete D.backText; saved(); };
   em.oninput = () => { D.email = em.value.trim(); saved(); };
   b.oninput = () => { D.bio = b.value; saved(); };
   i.oninput = () => { D.instagram = i.value.replace(/^@/, '').trim(); saved(); };
@@ -450,8 +476,14 @@ function panelCreditsPage(el) {
     <div class="ph"><b>Credits page</b></div>
     <div class="sec"><span class="lab">Layout for every project</span>
       <div class="lays" style="grid-template-columns:1fr">${Object.entries(CREDITS).map(([k, [t, d]]) => `<button class="lay ${k === cur ? 'on' : ''}" data-cl="${k}">${art(k)}<b>${t}</b><span class="d">${d}</span></button>`).join('')}</div>
-    </div>`;
+    </div>
+    <div class="sec"><span class="lab">Text style</span>
+      <div class="lays">
+        <button class="lay ${D.creditsType === 'dual' ? '' : 'on'}" data-ct="simple"><div class="tstyle s1"><i>Styling</i><b>Lorhaine Mendes</b></div><b>Simple</b><span class="d">The site’s own font</span></button>
+        <button class="lay ${D.creditsType === 'dual' ? 'on' : ''}" data-ct="dual"><div class="tstyle s2"><i>STYLING</i><b>Lorhaine Mendes</b><u>NOTES</u></div><b>Bold + typewriter</b><span class="d">Bold table, typewriter notes</span></button>
+      </div></div>`;
   $$('[data-cl]', el).forEach(b => b.onclick = () => edit(() => { D.creditsLayout = b.dataset.cl; }));
+  $$('[data-ct]', el).forEach(b => b.onclick = () => edit(() => { if (b.dataset.ct === 'dual') D.creditsType = 'dual'; else delete D.creditsType; }));
 }
 $$('.pg').forEach(b => b.onclick = () => { V.page = b.dataset.page; multi.clear(); render(); go(); });
 

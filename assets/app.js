@@ -23,6 +23,18 @@ let bg = $('.bg'), fg = $('.fg');
 const fgv = $('.fgv'), uv = $('.uv'), cursor = $('.cursor');
 const ptitle = $('.ptitle'), bigname = $('.bigname');
 const layers = { credits: $('.credits'), info: $('.info') };
+// the name in the top-left corner and the big text behind pictures, both set in the editor
+{
+  const site = data.name || 'Lorhaine Mendes', back = data.backText || site;
+  document.querySelectorAll('.ui .home').forEach(a => a.textContent = site);
+  bigname.querySelectorAll('span').forEach(sp => sp.textContent = back);
+  document.title = site;
+  // how the name in the corner looks (editor: font, bold, size)
+  const hd = data.head || {}, R = document.documentElement.style;
+  if (hd.font === 'serif') R.setProperty('--head-font', '"Bodoni Moda","Didot","Bodoni 72",serif');
+  if (hd.bold) R.setProperty('--head-weight', '700');
+  if (hd.size) R.setProperty('--head-size', hd.size + 'px');
+}
 
 // warm the cache so cuts are instant
 FLOW.forEach(it => { new Image().src = it.v ? vposter(it.f) : src(it.p.slug, it.f, 'md'); });
@@ -243,12 +255,18 @@ const CL = { strip: 'Strip', stack: 'Stack', grid: 'Grid' };
 const creditsLayout = (DRAFT && qs.get('credits') in CL && qs.get('credits')) || (data.creditsLayout in CL ? data.creditsLayout : 'strip');
 function renderCredits() {
   const cur = FLOW[Math.max(g, 0)], p = cur.p, L = layers.credits;
-  L.className = 'layer credits l-' + creditsLayout;
+  const dual = data.creditsType === 'dual';
+  L.className = 'layer credits l-' + creditsLayout + (dual ? ' t-dual' : '');
   const media = p.images.map((im, k) => im.v
     ? `<video src="${vsrc(im.f)}" poster="${vposter(im.f)}" data-k="${k}" muted loop playsinline autoplay></video>`
     : `<img src="${src(p.slug, im.f, creditsLayout === 'strip' || !mobile() ? (hi() ? 'web' : 'md') : 'md')}" data-k="${k}" alt="${esc(p.title)}" style="aspect-ratio:${im.w}/${im.h}">`).join('');
-  const meta = `<div class="meta"><h2>${esc(p.title)}</h2><dl>${(p.credits || []).filter(c => c.role || c.name).map(c => `<dt>${esc(c.role)}</dt><dd>${esc(c.name)}</dd>`).join('')}
-      ${p.client ? `<dt>Client</dt><dd>${esc(p.client)}</dd>` : ''}${p.year ? `<dt>Year</dt><dd>${esc(p.year)}</dd>` : ''}</dl></div>`;
+  const rows = (p.credits || []).filter(c => c.role || c.name);
+  const notes = String(p.notes || '').split('\n').map(x => x.trim()).filter(Boolean);
+  const meta = dual
+    ? `<div class="meta"><dl>${rows.map(c => `<dt>${esc(c.role)}</dt><dd>${esc(c.name)}</dd>`).join('')}</dl>
+        <div class="mono"><p>${esc(p.title)}</p>${[p.client, p.year].filter(Boolean).length ? `<p>${esc([p.client, p.year].filter(Boolean).join(', '))}</p>` : ''}${notes.map(n => `<p>${esc(n)}</p>`).join('')}</div></div>`
+    : `<div class="meta"><h2>${esc(p.title)}</h2><dl>${rows.map(c => `<dt>${esc(c.role)}</dt><dd>${esc(c.name)}</dd>`).join('')}
+      ${p.client ? `<dt>Client</dt><dd>${esc(p.client)}</dd>` : ''}${p.year ? `<dt>Year</dt><dd>${esc(p.year)}</dd>` : ''}</dl>${notes.length ? `<div class="notes">${notes.map(n => `<p>${esc(n)}</p>`).join('')}</div>` : ''}</div>`;
   L.innerHTML = `<a class="home" href="#/">${esc(data.name)}</a><button class="close">Close</button>
     ${creditsLayout === 'strip' ? `<div class="media">${media}</div>${meta}` : `${meta}<div class="media">${media}</div>`}`;
   L.querySelector('.close').onclick = close;
