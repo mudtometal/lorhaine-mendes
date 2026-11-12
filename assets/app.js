@@ -31,7 +31,8 @@ const layers = { credits: $('.credits'), info: $('.info') };
   document.title = site;
   // how the name in the corner looks (editor: font, bold, size)
   const hd = data.head || {}, R = document.documentElement.style;
-  if (hd.font === 'serif') R.setProperty('--head-font', '"Bodoni Moda","Didot","Bodoni 72",serif');
+  const HF = { serif: '"Bodoni Moda","Didot","Bodoni 72",serif', mono: '"IBM Plex Mono",ui-monospace,Menlo,monospace', times: '"Tinos","Times New Roman",Times,serif' };
+  if (HF[hd.font]) R.setProperty('--head-font', HF[hd.font]);
   if (hd.bold) R.setProperty('--head-weight', '700');
   if (hd.size) R.setProperty('--head-size', hd.size + 'px');
 }

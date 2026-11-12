@@ -449,7 +449,7 @@ function panelInfo(el) {
     <div class="ph"><b>Site</b></div>
     <div class="field"><span class="lab">Name in the top corner</span><input class="in sn" value="${esc(D.name)}" placeholder="Lorhaine Mendes"></div>
     <div class="field"><span class="lab">Name style</span>
-      <div class="seg hfont"><button data-hf="sans" class="${(D.head?.font || 'sans') === 'sans' ? 'on' : ''}">Simple</button><button data-hf="serif" class="${D.head?.font === 'serif' ? 'on' : ''}" style="font-family:'Bodoni Moda',serif">Bodoni</button></div>
+      <div class="seg hfont">${[['sans', 'Simple', "'Inter Tight',sans-serif"], ['mono', 'Mono', "'IBM Plex Mono',monospace"], ['times', 'Times', "'Tinos',serif"], ['serif', 'Bodoni', "'Bodoni Moda',serif"]].map(([k, t, f]) => `<button data-hf="${k}" class="${(D.head?.font || 'sans') === k ? 'on' : ''}" style="font-family:${f};font-weight:${D.head?.bold ? 700 : 400}">${t}</button>`).join('')}</div>
       <button class="sw hbold ${D.head?.bold ? 'on' : ''}" style="margin-top:10px"><i></i>Bold</button>
       <div class="sizer"><span>Size</span><input class="hsize" type="range" min="13" max="44" step="1" value="${D.head?.size || 15}"><b>${D.head?.size || 15}px</b></div></div>
     <div class="field"><span class="lab">Big text behind pictures</span><input class="in bt" value="${esc(D.backText || '')}" placeholder="${esc(D.name || 'Lorhaine Mendes')}"><p class="help">Leave empty to use the name above.</p></div>
@@ -460,7 +460,7 @@ function panelInfo(el) {
   const b = $('.bio', el), i = $('.ig', el), em = $('.em', el), sn = $('.sn', el), bt = $('.bt', el);
   b.onfocus = i.onfocus = em.onfocus = sn.onfocus = bt.onfocus = () => snapshot();
   const head = () => (D.head ||= {});
-  $$('[data-hf]', el).forEach(b => b.onclick = () => edit(() => { if (b.dataset.hf === 'serif') head().font = 'serif'; else delete head().font; }));
+  $$('[data-hf]', el).forEach(b => b.onclick = () => edit(() => { if (b.dataset.hf === 'sans') delete head().font; else head().font = b.dataset.hf; }));
   $('.hbold', el).onclick = () => edit(() => { head().bold = !D.head?.bold; if (!head().bold) delete head().bold; });
   const hs = $('.hsize', el); hs.oninput = () => { hs.nextElementSibling.textContent = hs.value + 'px'; };
   hs.onchange = () => edit(() => { if (+hs.value === 15) delete head().size; else head().size = +hs.value; });
