@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>Portfolio editor</title>
-<link rel="stylesheet" href="studio.css?v=13">
+<link rel="stylesheet" href="studio.css?v=14">
 </head>
 <body>
 <header class="top">
@@ -41,16 +41,29 @@
   <aside class="panel"></aside>
 </div>
 
-<dialog class="connect">
+<dialog class="unlockdlg">
   <form method="dialog">
-    <h2>Connect publishing</h2>
-    <p>Paste the publishing key you were given. You only do this once on this computer.</p>
-    <input class="token" type="password" autocomplete="off" placeholder="Publishing key">
-    <div class="drow"><button value="cancel">Cancel</button><button value="ok" class="pub">Connect</button></div>
+    <h2>Enter the password</h2>
+    <p>You only need to do this once on this computer.</p>
+    <input class="pw" type="password" autocomplete="current-password" placeholder="Password" autofocus>
+    <p class="err"></p>
+    <div class="drow"><button value="cancel">Cancel</button><button value="ok" class="pub">Unlock</button></div>
   </form>
 </dialog>
+<dialog class="setupdlg">
+  <form method="dialog">
+    <h2>Set up publishing</h2>
+    <p>One time only. Paste the GitHub key, then choose the password you and Lorhaine will use to open the editor.</p>
+    <input class="k" type="password" autocomplete="off" placeholder="GitHub key">
+    <input class="p1" type="password" autocomplete="new-password" placeholder="Choose a password" style="margin-top:8px">
+    <input class="p2" type="password" autocomplete="new-password" placeholder="Same password again" style="margin-top:8px">
+    <p class="err"></p>
+    <div class="drow"><button value="cancel">Cancel</button><button value="ok" class="pub">Save</button></div>
+  </form>
+</dialog>
+<div class="lockwall" hidden><p>This editor is locked.</p><button class="pub" onclick="location.reload()">Enter password</button></div>
 <input class="bgpick" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" hidden>
 <input class="filepick" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" multiple hidden>
-<script src="studio.js?v=14" type="module"></script>
+<script src="studio.js?v=15" type="module"></script>
 </body>
 </html>

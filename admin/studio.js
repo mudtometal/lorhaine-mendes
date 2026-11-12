@@ -605,13 +605,58 @@ const gh = async (path, opt = {}) => {
   return r.json();
 };
 const b64 = blob => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result.split(',')[1]); fr.readAsDataURL(blob); });
+/* ---------- password lock ----------
+   The publishing key is stored in data/publish.json, encrypted with a password you share.
+   Typing the password unlocks it in the browser (remembered on that computer). Set up once. */
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64e = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const b64d = str => Uint8Array.from(atob(str), c => c.charCodeAt(0));
+async function passKey(pw, salt) {
+  const base = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function lockKey(token, pw) {
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await passKey(pw, salt), enc.encode(token));
+  return { v: 1, salt: b64e(salt), iv: b64e(iv), ct: b64e(ct) };
+}
+async function unlockKey(lock, pw) {
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(lock.iv) }, await passKey(pw, b64d(lock.salt)), b64d(lock.ct));
+  return dec.decode(pt);
+}
+const getLock = () => fetch('../data/publish.json?' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+let lockFile = null;                      // set during first-time setup, published with the next Publish
+function ask(dlg, err = '') { dlg.querySelectorAll('input').forEach(i => i.value = ''); dlg.querySelector('.err').textContent = err; dlg.showModal(); return new Promise(r => dlg.onclose = () => r(dlg.returnValue === 'ok')); }
+async function unlock(force = false) {
+  if (!force && localStorage.getItem('lm-gh-token')) return true;
+  const lock = await getLock();
+  if (!lock) return setup();
+  const dlg = $('.unlockdlg');
+  let err = '';
+  for (;;) {
+    if (!(await ask(dlg, err))) return false;
+    try { localStorage.setItem('lm-gh-token', await unlockKey(lock, $('.pw', dlg).value)); toast('Unlocked on this computer'); return true; }
+    catch { err = 'That password isn’t right.'; }
+  }
+}
+async function setup() {
+  const dlg = $('.setupdlg');
+  if (!(await ask(dlg))) return false;
+  const key = $('.k', dlg).value.trim(), pw = $('.p1', dlg).value, pw2 = $('.p2', dlg).value;
+  if (!key || pw.length < 4 || pw !== pw2) { toast(!key ? 'Paste the publishing key' : pw !== pw2 ? 'The two passwords don’t match' : 'Use at least 4 characters'); return setup(); }
+  localStorage.setItem('lm-gh-token', key);
+  lockFile = await lockKey(key, pw);
+  toast('Password set. It goes live with your next Publish.');
+  return true;
+}
 async function publish() {
-  if (!localStorage.getItem('lm-gh-token') && !(await connect())) return;
+  if (!(await unlock())) return;
   const btn = $('.top .pub'); btn.disabled = true; btn.textContent = 'Publishing…';
   try {
     const out = clean(D);
     const files = { 'data/projects.json': new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }) };
     for (const b of Object.values(pending)) if (b.files) Object.assign(files, b.files);
+    if (lockFile) files['data/publish.json'] = new Blob([JSON.stringify(lockFile)], { type: 'application/json' });
     const tree = [];
     for (const [path, blob] of Object.entries(files)) {
       const { sha } = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: await b64(blob), encoding: 'base64' }) });
@@ -623,17 +668,14 @@ async function publish() {
     await gh(`/git/refs/heads/${REPO.branch}`, { method: 'PATCH', body: JSON.stringify({ sha: c.sha }) });
     published = structuredClone(out);
     for (const b of Object.values(pending)) delete b.files;
+    lockFile = null;
     localStorage.removeItem('lm-studio');
     toast('Published. The site updates within a minute.');
   } catch (err) {
-    if ([401, 403, 404].includes(err.status)) { localStorage.removeItem('lm-gh-token'); toast('The publishing key didn’t work. Please connect again.'); }
+    if ([401, 403, 404].includes(err.status)) { localStorage.removeItem('lm-gh-token'); toast(lockFile ? 'That publishing key didn’t work. Check it and try again.' : 'Publishing needs to be unlocked again. Press Publish and enter the password.'); lockFile = null; }
     else toast('Couldn’t publish. Check your connection and try again.');
   }
   btn.textContent = 'Publish'; status();
-}
-function connect() {
-  const dlg = $('.connect'); $('.token', dlg).value = ''; dlg.showModal();
-  return new Promise(r => dlg.onclose = () => { const v = $('.token', dlg).value.trim(); if (dlg.returnValue === 'ok' && v) { localStorage.setItem('lm-gh-token', v); r(true); } else r(false); });
 }
 $('.top .pub').onclick = publish;
 $('.discard').onclick = () => {
@@ -652,3 +694,10 @@ function toast(msg, withUndo = false) {
 
 /* ---------- go ---------- */
 writeDraft(); status(); render(); fit(); go();
+(async () => {                 // the editor is behind the shared password once it has been set
+  if (localStorage.getItem('lm-gh-token')) return;
+  const lock = await getLock(); if (!lock) return;
+  document.body.classList.add('locked');
+  if (await unlock(true)) document.body.classList.remove('locked');
+  else { document.body.classList.add('locked'); $('.lockwall').hidden = false; }
+})();
