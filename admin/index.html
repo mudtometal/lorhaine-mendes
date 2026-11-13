@@ -14,8 +14,7 @@
   <div class="right">
     <button class="tbtn undo" title="Undo (⌘Z)" disabled>Undo</button>
     <a class="tbtn" href="../" target="_blank" rel="noopener">View site</a>
-    <span class="state"></span><button class="tbtn discard" hidden>Discard draft</button>
-    <button class="pub">Publish</button>
+    <span class="state"></span><button class="tbtn discard" hidden>Reset</button>
   </div>
 </header>
 
@@ -41,29 +40,8 @@
   <aside class="panel"></aside>
 </div>
 
-<dialog class="unlockdlg">
-  <form method="dialog">
-    <h2>Enter the password</h2>
-    <p>You only need to do this once on this computer.</p>
-    <input class="pw" type="password" autocomplete="current-password" placeholder="Password" autofocus>
-    <p class="err"></p>
-    <div class="drow"><button value="cancel">Cancel</button><button value="ok" class="pub">Unlock</button></div>
-  </form>
-</dialog>
-<dialog class="setupdlg">
-  <form method="dialog">
-    <h2>Set up publishing</h2>
-    <p>One time only. Paste the GitHub key, then choose the password you and Lorhaine will use to open the editor.</p>
-    <input class="k" type="password" autocomplete="off" placeholder="GitHub key">
-    <input class="p1" type="password" autocomplete="new-password" placeholder="Choose a password" style="margin-top:8px">
-    <input class="p2" type="password" autocomplete="new-password" placeholder="Same password again" style="margin-top:8px">
-    <p class="err"></p>
-    <div class="drow"><button value="cancel">Cancel</button><button value="ok" class="pub">Save</button></div>
-  </form>
-</dialog>
-<div class="lockwall" hidden><p>This editor is locked.</p><button class="pub" onclick="location.reload()">Enter password</button></div>
 <input class="bgpick" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" hidden>
 <input class="filepick" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" multiple hidden>
-<script src="studio.js?v=15" type="module"></script>
+<script src="studio.js?v=16" type="module"></script>
 </body>
 </html>
